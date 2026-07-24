@@ -196,9 +196,15 @@ input:focus, select:focus {
   text-overflow: ellipsis;
 }
 
-.delete-button {
-  display: grid;
+.card-actions {
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+}
+
+.delete-button, .edit-button {
+  display: grid;
   width: 24px;
   height: 24px;
   place-items: center;
@@ -211,6 +217,8 @@ input:focus, select:focus {
   font-size: 18px;
 }
 
+.edit-button { font-size: 16px; }
+.edit-button:hover { color: var(--green); background: #e8f0ed; }
 .delete-button:hover { color: #a3433b; background: #f8ece9; }
 
 .empty-state {
