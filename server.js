@@ -36,7 +36,8 @@ function validSupplier(supplier) {
     supplier.id.length <= 100 &&
     typeof supplier.name === "string" &&
     supplier.name.trim().length > 0 &&
-    supplier.name.length <= 160
+    supplier.name.length <= 160 &&
+    (supplier.contract === undefined || typeof supplier.contract === "boolean")
   );
 }
 
