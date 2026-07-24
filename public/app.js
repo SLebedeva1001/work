@@ -144,12 +144,11 @@ exportButton.addEventListener("click", () => {
     kuznetsova: "Дарья Кузнецова"
   };
   const escapeCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
-  const rows = [["Менеджер", "Поставщик"]];
+  const rows = [managers.map((manager) => managerNames[manager])];
+  const longestColumn = Math.max(...managers.map((manager) => board[manager].length));
 
-  for (const manager of managers) {
-    for (const supplier of board[manager]) {
-      rows.push([managerNames[manager], supplier.name]);
-    }
+  for (let index = 0; index < longestColumn; index += 1) {
+    rows.push(managers.map((manager) => board[manager][index]?.name || ""));
   }
 
   const csv = `\uFEFF${rows.map((row) => row.map(escapeCell).join(";")).join("\r\n")}`;
