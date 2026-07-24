@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: supplier-kanban
+    runtime: node
+    plan: starter
+    buildCommand: ""
+    startCommand: npm start
+    healthCheckPath: /board
+    envVars:
+      - key: DATA_FILE
+        value: /var/data/board.json
+    disk:
+      name: supplier-board-data
+      mountPath: /var/data
+      sizeGB: 1
