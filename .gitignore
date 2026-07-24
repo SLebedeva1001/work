@@ -2,3 +2,5 @@ node_modules/
 *.log
 .env
 data/*.tmp
+data/board-live-backup.json
+.tmp-sheet/

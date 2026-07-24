@@ -9,6 +9,9 @@ const SEED_FILE = path.join(__dirname, "data", "board.json");
 const DATA_FILE = process.env.DATA_FILE
   ? path.resolve(process.env.DATA_FILE)
   : SEED_FILE;
+const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 
 const CONTENT_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -73,7 +76,7 @@ function normalizeBoard(value) {
   throw new Error("INVALID_BOARD_FILE");
 }
 
-async function readBoard() {
+async function readFileBoard() {
   try {
     return normalizeBoard(JSON.parse(await fs.readFile(DATA_FILE, "utf8")));
   } catch (error) {
@@ -85,13 +88,61 @@ async function readBoard() {
 }
 
 let writeQueue = Promise.resolve();
-function writeBoard(board) {
+function writeFileBoard(board) {
   writeQueue = writeQueue.then(async () => {
     const temporary = `${DATA_FILE}.tmp`;
     await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
     await fs.writeFile(temporary, `${JSON.stringify(board, null, 2)}\n`, "utf8");
     await fs.rename(temporary, DATA_FILE);
   });
+  return writeQueue;
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`SUPABASE_${response.status}: ${details.slice(0, 500)}`);
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function readBoard() {
+  if (!USE_SUPABASE) return readFileBoard();
+
+  const rows = await supabaseRequest("board_state?id=eq.main&select=data");
+  if (rows.length) return normalizeBoard(rows[0].data);
+
+  const seed = normalizeBoard(JSON.parse(await fs.readFile(SEED_FILE, "utf8")));
+  await writeBoard(seed);
+  return seed;
+}
+
+function writeBoard(board) {
+  if (!USE_SUPABASE) return writeFileBoard(board);
+
+  writeQueue = writeQueue.then(() =>
+    supabaseRequest("board_state?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        id: "main",
+        data: board,
+        updated_at: new Date().toISOString()
+      })
+    })
+  );
   return writeQueue;
 }
 
@@ -163,5 +214,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Supplier board is running at http://localhost:${PORT}`);
-  console.log(`Data file: ${DATA_FILE}`);
+  console.log(USE_SUPABASE ? "Data storage: Supabase" : `Data file: ${DATA_FILE}`);
 });
