@@ -26,30 +26,59 @@ function sendJson(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
-function validBoard(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const expected = ["lebedeva", "terekhova", "kuznetsova"];
-  return expected.every(
-    (key) =>
-      Array.isArray(value[key]) &&
-      value[key].every(
-        (supplier) =>
-          supplier &&
-          typeof supplier.id === "string" &&
-          supplier.id.length <= 100 &&
-          typeof supplier.name === "string" &&
-          supplier.name.trim().length > 0 &&
-          supplier.name.length <= 160
-      )
+function validSupplier(supplier) {
+  return (
+    supplier &&
+    typeof supplier.id === "string" &&
+    supplier.id.length <= 100 &&
+    typeof supplier.name === "string" &&
+    supplier.name.trim().length > 0 &&
+    supplier.name.length <= 160
   );
+}
+
+function validBoard(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    Array.isArray(value.columns) &&
+    value.columns.length <= 30 &&
+    value.columns.every(
+      (column) =>
+        column &&
+        typeof column.id === "string" &&
+        column.id.length <= 100 &&
+        typeof column.name === "string" &&
+        column.name.trim().length > 0 &&
+        column.name.length <= 80 &&
+        typeof column.color === "string" &&
+        /^#[0-9a-f]{6}$/i.test(column.color) &&
+        Array.isArray(column.suppliers) &&
+        column.suppliers.every(validSupplier)
+    )
+  );
+}
+
+function normalizeBoard(value) {
+  if (validBoard(value)) return value;
+  if (value && Array.isArray(value.lebedeva) && Array.isArray(value.terekhova) && Array.isArray(value.kuznetsova)) {
+    return {
+      columns: [
+        { id: "lebedeva", name: "Светлана Лебедева", color: "#cf6c32", suppliers: value.lebedeva },
+        { id: "terekhova", name: "Светлана Терехова", color: "#31695d", suppliers: value.terekhova },
+        { id: "kuznetsova", name: "Дарья Кузнецова", color: "#506da8", suppliers: value.kuznetsova }
+      ]
+    };
+  }
+  throw new Error("INVALID_BOARD_FILE");
 }
 
 async function readBoard() {
   try {
-    return JSON.parse(await fs.readFile(DATA_FILE, "utf8"));
+    return normalizeBoard(JSON.parse(await fs.readFile(DATA_FILE, "utf8")));
   } catch (error) {
     if (error.code !== "ENOENT" || DATA_FILE === SEED_FILE) throw error;
-    const seed = JSON.parse(await fs.readFile(SEED_FILE, "utf8"));
+    const seed = normalizeBoard(JSON.parse(await fs.readFile(SEED_FILE, "utf8")));
     await writeBoard(seed);
     return seed;
   }
