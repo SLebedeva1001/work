@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f4f1" />
+    <title>Распределение поставщиков</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div>
+          <h1>Распределение поставщиков</h1>
+          <p class="subtitle">BABY TREND · ЗАКУПКИ · ПЕРЕТАЩИТЕ КАРТОЧКУ В НУЖНУЮ КОЛОНКУ</p>
+        </div>
+        <form id="supplier-form" aria-label="Добавить поставщика">
+          <input id="supplier-name" name="name" maxlength="160" placeholder="Новый поставщик…" required />
+          <select id="manager-select" name="manager">
+            <option value="lebedeva">Лебедева</option>
+            <option value="terekhova">Терехова</option>
+            <option value="kuznetsova">Кузнецова</option>
+          </select>
+          <button class="add-button" type="submit">Добавить</button>
+        </form>
+      </header>
+
+      <div class="sync-status" id="sync-status" role="status" aria-live="polite">
+        <span class="status-dot"></span>
+        <span>Загрузка…</span>
+      </div>
+
+      <section class="board" id="board" aria-label="Канбан-доска">
+        <article class="column column--orange" data-manager="lebedeva">
+          <header class="column-header">
+            <h2>Светлана Лебедева</h2>
+            <span class="count" aria-label="Количество поставщиков">0</span>
+          </header>
+          <div class="card-list" data-list="lebedeva"></div>
+        </article>
+        <article class="column column--green" data-manager="terekhova">
+          <header class="column-header">
+            <h2>Светлана Терехова</h2>
+            <span class="count" aria-label="Количество поставщиков">0</span>
+          </header>
+          <div class="card-list" data-list="terekhova"></div>
+        </article>
+        <article class="column column--blue" data-manager="kuznetsova">
+          <header class="column-header">
+            <h2>Дарья Кузнецова</h2>
+            <span class="count" aria-label="Количество поставщиков">0</span>
+          </header>
+          <div class="card-list" data-list="kuznetsova"></div>
+        </article>
+      </section>
+    </main>
+    <div class="toast" id="toast" role="alert"></div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>
