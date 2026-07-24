@@ -46,12 +46,12 @@ h1 { margin: 0; font-size: 28px; line-height: 1; }
 
 #supplier-form {
   display: grid;
-  flex: 0 1 510px;
-  grid-template-columns: minmax(150px, 230px) 140px auto;
+  flex: 0 1 650px;
+  grid-template-columns: minmax(150px, 230px) 130px auto auto;
   gap: 8px;
 }
 
-input, select, .add-button { height: 34px; border-radius: 6px; }
+input, select, .add-button, .export-button { height: 34px; border-radius: 6px; }
 
 input, select {
   min-width: 0;
@@ -79,6 +79,19 @@ input:focus, select:focus {
 }
 
 .add-button:disabled { cursor: wait; opacity: .6; }
+
+.export-button {
+  padding: 0 13px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #b9b6ae;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.export-button:hover { background: #eeece7; }
 
 .sync-status {
   display: flex;
@@ -244,7 +257,7 @@ input:focus, select:focus {
 @media (max-width: 900px) {
   .page-shell { width: calc(100% - 24px); padding-top: 20px; }
   .page-header { align-items: stretch; flex-direction: column; gap: 12px; }
-  #supplier-form { flex-basis: auto; grid-template-columns: 1fr 130px auto; }
+  #supplier-form { flex-basis: auto; grid-template-columns: 1fr 130px auto auto; }
   .board { grid-template-columns: 1fr; }
   .column { min-height: 140px; }
 }
@@ -252,7 +265,7 @@ input:focus, select:focus {
 @media (max-width: 540px) {
   h1 { font-size: 24px; }
   #supplier-form { grid-template-columns: 1fr; }
-  .add-button { width: 100%; }
+  .add-button, .export-button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

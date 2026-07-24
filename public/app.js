@@ -3,6 +3,7 @@ const boardElement = document.querySelector("#board");
 const form = document.querySelector("#supplier-form");
 const nameInput = document.querySelector("#supplier-name");
 const managerSelect = document.querySelector("#manager-select");
+const exportButton = document.querySelector("#export-button");
 const syncStatus = document.querySelector("#sync-status");
 const toast = document.querySelector("#toast");
 
@@ -134,6 +135,34 @@ boardElement.addEventListener("click", async (event) => {
   board[located.manager].splice(located.index, 1);
   render();
   await saveBoard();
+});
+
+exportButton.addEventListener("click", () => {
+  const managerNames = {
+    lebedeva: "Светлана Лебедева",
+    terekhova: "Светлана Терехова",
+    kuznetsova: "Дарья Кузнецова"
+  };
+  const escapeCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
+  const rows = [["Менеджер", "Поставщик"]];
+
+  for (const manager of managers) {
+    for (const supplier of board[manager]) {
+      rows.push([managerNames[manager], supplier.name]);
+    }
+  }
+
+  const csv = `\uFEFF${rows.map((row) => row.map(escapeCell).join(";")).join("\r\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `поставщики-${date}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 });
 
 function clearDragVisuals() {
