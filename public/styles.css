@@ -46,8 +46,8 @@ h1 { margin: 0; font-size: 28px; line-height: 1; }
 
 #supplier-form {
   display: grid;
-  flex: 0 1 780px;
-  grid-template-columns: minmax(150px, 230px) 130px auto auto auto;
+  flex: 0 1 850px;
+  grid-template-columns: minmax(150px, 1fr) minmax(200px, 230px) auto auto auto;
   gap: 8px;
 }
 
@@ -302,7 +302,7 @@ input:focus, select:focus {
 @media (max-width: 900px) {
   .page-shell { width: calc(100% - 24px); padding-top: 20px; }
   .page-header { align-items: stretch; flex-direction: column; gap: 12px; }
-  #supplier-form { flex-basis: auto; grid-template-columns: 1fr 130px auto auto auto; }
+  #supplier-form { flex-basis: auto; grid-template-columns: minmax(150px, 1fr) minmax(200px, 230px) auto auto auto; }
   .board { grid-template-columns: 1fr; }
   .column { min-height: 140px; }
 }
