@@ -13,6 +13,7 @@ const dialogMessage = document.querySelector("#dialog-message");
 const dialogInput = document.querySelector("#dialog-input");
 const dialogConfirm = document.querySelector("#dialog-confirm");
 const palette = ["#cf6c32", "#31695d", "#506da8", "#8a5a89", "#8b7a32", "#477785"];
+const supplierCollator = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
 
 let board = { columns: [] };
 let savedBoard = structuredClone(board);
@@ -84,6 +85,9 @@ function renderManagerOptions() {
 }
 
 function render() {
+  board.columns.forEach((column) => {
+    column.suppliers.sort((left, right) => supplierCollator.compare(left.name, right.name));
+  });
   renderManagerOptions();
   form.querySelector(".add-button").disabled = board.columns.length === 0;
 
@@ -96,6 +100,10 @@ function render() {
                 <div class="supplier-card" data-id="${escapeText(supplier.id)}" data-column="${escapeText(column.id)}" tabindex="0">
                   <span class="supplier-name">${escapeText(supplier.name)}</span>
                   <span class="card-actions">
+                    <label class="contract-mark" title="Контракт">
+                      <input class="contract-checkbox" type="checkbox" ${supplier.contract ? "checked" : ""} aria-label="Контракт с ${escapeText(supplier.name)}" />
+                      <span aria-hidden="true">К</span>
+                    </label>
                     <button class="edit-button" type="button" aria-label="Изменить ${escapeText(supplier.name)}" title="Изменить">✎</button>
                     <button class="delete-button" type="button" aria-label="Удалить ${escapeText(supplier.name)}" title="Удалить">×</button>
                   </span>
@@ -178,7 +186,7 @@ form.addEventListener("submit", async (event) => {
   const name = nameInput.value.trim();
   const column = board.columns.find((item) => item.id === managerSelect.value);
   if (!name || !column) return;
-  column.suppliers.push({ id: `supplier-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, name });
+  column.suppliers.push({ id: `supplier-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, name, contract: false });
   render();
   const saved = await saveBoard();
   if (saved) {
@@ -256,6 +264,15 @@ exportButton.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+boardElement.addEventListener("change", async (event) => {
+  const checkbox = event.target.closest(".contract-checkbox");
+  if (!checkbox) return;
+  const located = locateSupplier(checkbox.closest(".supplier-card").dataset.id);
+  if (!located) return;
+  located.supplier.contract = checkbox.checked;
+  await saveBoard();
+});
+
 function clearDragVisuals() {
   document.querySelectorAll(".is-over").forEach((node) => node.classList.remove("is-over"));
   document.querySelectorAll(".is-dragging").forEach((node) => node.classList.remove("is-dragging"));
@@ -290,7 +307,7 @@ function updatePointerDrag(event) {
 }
 
 boardElement.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || event.target.closest("button")) return;
+  if (event.button !== 0 || event.target.closest("button, input, label")) return;
   const card = event.target.closest(".supplier-card");
   if (!card) return;
   dragState = { id: card.dataset.id, card, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false };
