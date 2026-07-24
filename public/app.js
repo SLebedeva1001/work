@@ -46,7 +46,10 @@ function render() {
         (supplier) => `
           <div class="supplier-card" data-id="${escapeText(supplier.id)}" data-manager="${manager}" tabindex="0">
             <span class="supplier-name">${escapeText(supplier.name)}</span>
-            <button class="delete-button" type="button" aria-label="Удалить ${escapeText(supplier.name)}" title="Удалить">×</button>
+            <span class="card-actions">
+              <button class="edit-button" type="button" aria-label="Изменить ${escapeText(supplier.name)}" title="Изменить">✎</button>
+              <button class="delete-button" type="button" aria-label="Удалить ${escapeText(supplier.name)}" title="Удалить">×</button>
+            </span>
           </div>`
       )
       .join("");
@@ -127,6 +130,19 @@ form.addEventListener("submit", async (event) => {
 });
 
 boardElement.addEventListener("click", async (event) => {
+  const editButton = event.target.closest(".edit-button");
+  if (editButton) {
+    const card = editButton.closest(".supplier-card");
+    const located = locateSupplier(card.dataset.id);
+    if (!located) return;
+    const editedName = window.prompt("Новое название поставщика", located.supplier.name)?.trim();
+    if (!editedName || editedName === located.supplier.name) return;
+    located.supplier.name = editedName.slice(0, 160);
+    render();
+    await saveBoard();
+    return;
+  }
+
   const button = event.target.closest(".delete-button");
   if (!button) return;
   const card = button.closest(".supplier-card");
@@ -197,7 +213,7 @@ function updatePointerDrag(event) {
 }
 
 boardElement.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || event.target.closest(".delete-button")) return;
+  if (event.button !== 0 || event.target.closest("button")) return;
   const card = event.target.closest(".supplier-card");
   if (!card) return;
   dragState = {
