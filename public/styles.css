@@ -218,6 +218,48 @@ input:focus, select:focus {
   gap: 1px;
 }
 
+.contract-mark {
+  display: grid;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  cursor: pointer;
+}
+
+.contract-mark input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.contract-mark span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: #9a9f9d;
+  background: #f3f2ef;
+  border: 1px solid #d8d5ce;
+  border-radius: 5px;
+  font-family: Arial, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.contract-mark input:checked + span {
+  color: white;
+  background: var(--column-color, var(--green));
+  border-color: var(--column-color, var(--green));
+}
+
+.contract-mark input:focus-visible + span {
+  outline: 2px solid rgba(49,105,93,.28);
+  outline-offset: 1px;
+}
+
 .delete-button, .edit-button {
   display: grid;
   width: 24px;
