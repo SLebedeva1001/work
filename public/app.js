@@ -1,16 +1,61 @@
-const managers = ["lebedeva", "terekhova", "kuznetsova"];
 const boardElement = document.querySelector("#board");
 const form = document.querySelector("#supplier-form");
 const nameInput = document.querySelector("#supplier-name");
 const managerSelect = document.querySelector("#manager-select");
 const exportButton = document.querySelector("#export-button");
+const columnButton = document.querySelector("#column-button");
 const syncStatus = document.querySelector("#sync-status");
 const toast = document.querySelector("#toast");
+const appDialog = document.querySelector("#app-dialog");
+const dialogForm = document.querySelector("#dialog-form");
+const dialogTitle = document.querySelector("#dialog-title");
+const dialogMessage = document.querySelector("#dialog-message");
+const dialogInput = document.querySelector("#dialog-input");
+const dialogConfirm = document.querySelector("#dialog-confirm");
+const palette = ["#cf6c32", "#31695d", "#506da8", "#8a5a89", "#8b7a32", "#477785"];
 
-let board = { lebedeva: [], terekhova: [], kuznetsova: [] };
+let board = { columns: [] };
 let savedBoard = structuredClone(board);
 let toastTimer;
 let dragState = null;
+
+function askText(title, value = "", message = "") {
+  return new Promise((resolve) => {
+    appDialog.className = "app-dialog";
+    dialogTitle.textContent = title;
+    dialogMessage.textContent = message;
+    dialogInput.value = value;
+    dialogConfirm.textContent = "Сохранить";
+    dialogConfirm.className = "dialog-confirm";
+    appDialog.showModal();
+    dialogInput.focus();
+    dialogInput.select();
+    appDialog.addEventListener("close", () => {
+      resolve(appDialog.returnValue === "confirm" ? dialogInput.value.trim() : "");
+    }, { once: true });
+  });
+}
+
+function askConfirm(title, message) {
+  return new Promise((resolve) => {
+    appDialog.className = "app-dialog is-confirm";
+    dialogTitle.textContent = title;
+    dialogMessage.textContent = message;
+    dialogConfirm.textContent = "Удалить";
+    dialogConfirm.className = "dialog-confirm is-danger";
+    appDialog.showModal();
+    appDialog.addEventListener("close", () => {
+      resolve(appDialog.returnValue === "confirm");
+    }, { once: true });
+  });
+}
+
+dialogForm.addEventListener("submit", (event) => {
+  if (!appDialog.classList.contains("is-confirm") && !dialogInput.value.trim()) {
+    event.preventDefault();
+    dialogInput.focus();
+  }
+});
 
 function setStatus(message, state = "") {
   syncStatus.className = `sync-status ${state}`.trim();
@@ -30,30 +75,48 @@ function escapeText(value) {
   return node.innerHTML;
 }
 
+function renderManagerOptions() {
+  const selected = managerSelect.value;
+  managerSelect.innerHTML = board.columns
+    .map((column) => `<option value="${escapeText(column.id)}">${escapeText(column.name)}</option>`)
+    .join("");
+  if (board.columns.some((column) => column.id === selected)) managerSelect.value = selected;
+}
+
 function render() {
-  for (const manager of managers) {
-    const list = document.querySelector(`[data-list="${manager}"]`);
-    const column = document.querySelector(`[data-manager="${manager}"]`);
-    column.querySelector(".count").textContent = board[manager].length;
+  renderManagerOptions();
+  form.querySelector(".add-button").disabled = board.columns.length === 0;
 
-    if (!board[manager].length) {
-      list.innerHTML = '<div class="empty-state">Пусто — перетащите сюда поставщика</div>';
-      continue;
-    }
+  boardElement.innerHTML = board.columns
+    .map((column) => {
+      const cards = column.suppliers.length
+        ? column.suppliers
+            .map(
+              (supplier) => `
+                <div class="supplier-card" data-id="${escapeText(supplier.id)}" data-column="${escapeText(column.id)}" tabindex="0">
+                  <span class="supplier-name">${escapeText(supplier.name)}</span>
+                  <span class="card-actions">
+                    <button class="edit-button" type="button" aria-label="Изменить ${escapeText(supplier.name)}" title="Изменить">✎</button>
+                    <button class="delete-button" type="button" aria-label="Удалить ${escapeText(supplier.name)}" title="Удалить">×</button>
+                  </span>
+                </div>`
+            )
+            .join("")
+        : '<div class="empty-state">Пусто — перетащите сюда поставщика</div>';
 
-    list.innerHTML = board[manager]
-      .map(
-        (supplier) => `
-          <div class="supplier-card" data-id="${escapeText(supplier.id)}" data-manager="${manager}" tabindex="0">
-            <span class="supplier-name">${escapeText(supplier.name)}</span>
-            <span class="card-actions">
-              <button class="edit-button" type="button" aria-label="Изменить ${escapeText(supplier.name)}" title="Изменить">✎</button>
-              <button class="delete-button" type="button" aria-label="Удалить ${escapeText(supplier.name)}" title="Удалить">×</button>
+      return `
+        <article class="column" data-column="${escapeText(column.id)}" style="--column-color:${escapeText(column.color)}">
+          <header class="column-header">
+            <h2>${escapeText(column.name)}</h2>
+            <span class="column-header-actions">
+              <span class="count" aria-label="Количество поставщиков">${column.suppliers.length}</span>
+              <button class="delete-column-button" type="button" aria-label="Удалить колонку ${escapeText(column.name)}" title="Удалить колонку">×</button>
             </span>
-          </div>`
-      )
-      .join("");
-  }
+          </header>
+          <div class="card-list" data-list="${escapeText(column.id)}">${cards}</div>
+        </article>`;
+    })
+    .join("");
 }
 
 async function loadBoard() {
@@ -93,18 +156,19 @@ async function saveBoard() {
 }
 
 function locateSupplier(id) {
-  for (const manager of managers) {
-    const index = board[manager].findIndex((supplier) => supplier.id === id);
-    if (index !== -1) return { manager, index, supplier: board[manager][index] };
+  for (const column of board.columns) {
+    const index = column.suppliers.findIndex((supplier) => supplier.id === id);
+    if (index !== -1) return { column, index, supplier: column.suppliers[index] };
   }
   return null;
 }
 
-async function moveSupplier(id, targetManager) {
+async function moveSupplier(id, targetColumnId) {
   const located = locateSupplier(id);
-  if (!located || !managers.includes(targetManager) || located.manager === targetManager) return;
-  board[located.manager].splice(located.index, 1);
-  board[targetManager].push(located.supplier);
+  const target = board.columns.find((column) => column.id === targetColumnId);
+  if (!located || !target || located.column.id === target.id) return;
+  located.column.suppliers.splice(located.index, 1);
+  target.suppliers.push(located.supplier);
   render();
   await saveBoard();
 }
@@ -112,30 +176,52 @@ async function moveSupplier(id, targetManager) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = nameInput.value.trim();
-  const manager = managerSelect.value;
-  if (!name || !managers.includes(manager)) return;
-
-  board[manager].push({
-    id: `supplier-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-    name
-  });
+  const column = board.columns.find((item) => item.id === managerSelect.value);
+  if (!name || !column) return;
+  column.suppliers.push({ id: `supplier-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`, name });
   render();
-  form.querySelector("button").disabled = true;
   const saved = await saveBoard();
-  form.querySelector("button").disabled = false;
   if (saved) {
-    form.reset();
+    nameInput.value = "";
     nameInput.focus();
   }
 });
 
+columnButton.addEventListener("click", async () => {
+  const name = await askText("Новая колонка", "", "Введите имя менеджера или название группы.");
+  if (!name) return;
+  board.columns.push({
+    id: `column-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+    name: name.slice(0, 80),
+    color: palette[board.columns.length % palette.length],
+    suppliers: []
+  });
+  render();
+  managerSelect.value = board.columns.at(-1).id;
+  await saveBoard();
+});
+
 boardElement.addEventListener("click", async (event) => {
+  const columnDelete = event.target.closest(".delete-column-button");
+  if (columnDelete) {
+    const columnElement = columnDelete.closest(".column");
+    const column = board.columns.find((item) => item.id === columnElement.dataset.column);
+    if (!column) return;
+    const warning = column.suppliers.length
+      ? `Удалить колонку «${column.name}» и ${column.suppliers.length} карточек?`
+      : `Удалить пустую колонку «${column.name}»?`;
+    if (!await askConfirm("Удалить колонку?", warning)) return;
+    board.columns = board.columns.filter((item) => item.id !== column.id);
+    render();
+    await saveBoard();
+    return;
+  }
+
   const editButton = event.target.closest(".edit-button");
   if (editButton) {
-    const card = editButton.closest(".supplier-card");
-    const located = locateSupplier(card.dataset.id);
+    const located = locateSupplier(editButton.closest(".supplier-card").dataset.id);
     if (!located) return;
-    const editedName = window.prompt("Новое название поставщика", located.supplier.name)?.trim();
+    const editedName = await askText("Изменить название", located.supplier.name);
     if (!editedName || editedName === located.supplier.name) return;
     located.supplier.name = editedName.slice(0, 160);
     render();
@@ -143,37 +229,27 @@ boardElement.addEventListener("click", async (event) => {
     return;
   }
 
-  const button = event.target.closest(".delete-button");
-  if (!button) return;
-  const card = button.closest(".supplier-card");
-  const located = locateSupplier(card.dataset.id);
+  const deleteButton = event.target.closest(".delete-button");
+  if (!deleteButton) return;
+  const located = locateSupplier(deleteButton.closest(".supplier-card").dataset.id);
   if (!located) return;
-  board[located.manager].splice(located.index, 1);
+  located.column.suppliers.splice(located.index, 1);
   render();
   await saveBoard();
 });
 
 exportButton.addEventListener("click", () => {
-  const managerNames = {
-    lebedeva: "Светлана Лебедева",
-    terekhova: "Светлана Терехова",
-    kuznetsova: "Дарья Кузнецова"
-  };
   const escapeCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
-  const rows = [managers.map((manager) => managerNames[manager])];
-  const longestColumn = Math.max(...managers.map((manager) => board[manager].length));
-
+  const rows = [board.columns.map((column) => column.name)];
+  const longestColumn = Math.max(0, ...board.columns.map((column) => column.suppliers.length));
   for (let index = 0; index < longestColumn; index += 1) {
-    rows.push(managers.map((manager) => board[manager][index]?.name || ""));
+    rows.push(board.columns.map((column) => column.suppliers[index]?.name || ""));
   }
-
   const csv = `\uFEFF${rows.map((row) => row.map(escapeCell).join(";")).join("\r\n")}`;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
-  const date = new Date().toISOString().slice(0, 10);
   link.href = url;
-  link.download = `поставщики-${date}.csv`;
+  link.download = `поставщики-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -190,7 +266,6 @@ function updatePointerDrag(event) {
   if (!dragState) return;
   const distance = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
   if (!dragState.active && distance < 7) return;
-
   if (!dragState.active) {
     dragState.active = true;
     const rect = dragState.card.getBoundingClientRect();
@@ -198,49 +273,42 @@ function updatePointerDrag(event) {
     dragState.offsetY = event.clientY - rect.top;
     dragState.ghost = dragState.card.cloneNode(true);
     dragState.ghost.classList.add("drag-ghost");
-    dragState.ghost.querySelector(".delete-button")?.remove();
+    dragState.ghost.querySelector(".card-actions")?.remove();
     dragState.ghost.style.width = `${rect.width}px`;
     document.body.appendChild(dragState.ghost);
     dragState.card.classList.add("is-dragging");
   }
-
   event.preventDefault();
   dragState.ghost.style.left = `${event.clientX - dragState.offsetX}px`;
   dragState.ghost.style.top = `${event.clientY - dragState.offsetY}px`;
   document.querySelectorAll(".is-over").forEach((node) => node.classList.remove("is-over"));
-  const beneath = document.elementFromPoint(event.clientX, event.clientY);
-  beneath?.closest(".card-list")?.classList.add("is-over");
+  document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest(".column")
+    ?.querySelector(".card-list")
+    ?.classList.add("is-over");
 }
 
 boardElement.addEventListener("pointerdown", (event) => {
   if (event.button !== 0 || event.target.closest("button")) return;
   const card = event.target.closest(".supplier-card");
   if (!card) return;
-  dragState = {
-    id: card.dataset.id,
-    card,
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    active: false
-  };
+  dragState = { id: card.dataset.id, card, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false };
   card.setPointerCapture(event.pointerId);
 });
 
 boardElement.addEventListener("pointermove", updatePointerDrag);
-
-async function finishPointerDrag(event) {
+boardElement.addEventListener("pointerup", async (event) => {
   if (!dragState || dragState.pointerId !== event.pointerId) return;
   const wasActive = dragState.active;
   const id = dragState.id;
-  const beneath = wasActive ? document.elementFromPoint(event.clientX, event.clientY) : null;
-  const targetManager = beneath?.closest(".card-list")?.dataset.list;
+  const targetColumn = wasActive
+    ? document.elementFromPoint(event.clientX, event.clientY)?.closest(".column")?.dataset.column
+    : null;
   clearDragVisuals();
   dragState = null;
-  if (wasActive && targetManager) await moveSupplier(id, targetManager);
-}
-
-boardElement.addEventListener("pointerup", finishPointerDrag);
+  if (wasActive && targetColumn) await moveSupplier(id, targetColumn);
+});
 boardElement.addEventListener("pointercancel", (event) => {
   if (dragState?.pointerId !== event.pointerId) return;
   clearDragVisuals();

@@ -1,58 +1,225 @@
 {
-  "lebedeva": [
-    { "id": "xlsx-lebedeva-1", "name": "Сигма" },
-    { "id": "xlsx-lebedeva-2", "name": "Рекит" },
-    { "id": "xlsx-lebedeva-3", "name": "Тосол Синтез (Малыши)" },
-    { "id": "xlsx-lebedeva-4", "name": "Логистика" },
-    { "id": "xlsx-lebedeva-5", "name": "Синергетик" },
-    { "id": "baseline-lebedeva-1", "name": "Барилла" },
-    { "id": "baseline-lebedeva-2", "name": "Бумфа" },
-    { "id": "baseline-lebedeva-3", "name": "Гигиена" },
-    { "id": "baseline-lebedeva-4", "name": "Грасс Опт" },
-    { "id": "baseline-lebedeva-5", "name": "Интербытхим" },
-    { "id": "baseline-lebedeva-6", "name": "Макси Трейд" },
-    { "id": "baseline-lebedeva-7", "name": "БТК" },
-    { "id": "baseline-lebedeva-8", "name": "Объединенные Кондитеры" },
-    { "id": "baseline-lebedeva-9", "name": "Северная Лига" },
-    { "id": "baseline-lebedeva-10", "name": "Субмераль" },
-    { "id": "baseline-lebedeva-11", "name": "ТДМ" },
-    { "id": "baseline-lebedeva-12", "name": "Тайли Сити" },
-    { "id": "baseline-lebedeva-13", "name": "Товары из Европы" },
-    { "id": "baseline-lebedeva-14", "name": "Феликс ТС" },
-    { "id": "baseline-lebedeva-15", "name": "Марьина Роша" },
-    { "id": "baseline-lebedeva-16", "name": "Эклиф" },
-    { "id": "baseline-lebedeva-17", "name": "Ю Профит" },
-    { "id": "baseline-lebedeva-18", "name": "Юрвес" },
-    { "id": "baseline-lebedeva-19", "name": "Сясьский ЦБК" },
-    { "id": "baseline-lebedeva-20", "name": "ТД Энерго" },
-    { "id": "baseline-lebedeva-21", "name": "ЮниРусь" },
-    { "id": "baseline-lebedeva-22", "name": "Лента" },
-    { "id": "baseline-lebedeva-23", "name": "Магнит" },
-    { "id": "baseline-lebedeva-24", "name": "Метро" },
-    { "id": "baseline-lebedeva-25", "name": "Эласго" },
-    { "id": "baseline-lebedeva-26", "name": "CleanPro (Грасс)" },
-    { "id": "baseline-lebedeva-27", "name": "Агора" },
-    { "id": "baseline-lebedeva-28", "name": "Парфюм" },
-    { "id": "baseline-lebedeva-29", "name": "Комплексн. поставки" },
-    { "id": "baseline-lebedeva-30", "name": "Санрайз" },
-    { "id": "baseline-lebedeva-31", "name": "Химбытоптторг" },
-    { "id": "baseline-lebedeva-32", "name": "Чистый уют" }
-  ],
-  "terekhova": [
-    { "id": "xlsx-terekhova-1", "name": "Бурштат -Прайм" },
-    { "id": "xlsx-terekhova-2", "name": "Селвин-БТ" },
-    { "id": "xlsx-terekhova-3", "name": "Магнит-Прайм" },
-    { "id": "xlsx-terekhova-4", "name": "Мягкий знак" },
-    { "id": "xlsx-terekhova-5", "name": "Юнилевер" },
-    { "id": "xlsx-terekhova-6", "name": "ТДК" },
-    { "id": "xlsx-terekhova-7", "name": "Кинетика" },
-    { "id": "xlsx-terekhova-8", "name": "Логистика" },
-    { "id": "xlsx-terekhova-9", "name": "прайсы" }
-  ],
-  "kuznetsova": [
-    { "id": "xlsx-kuznetsova-1", "name": "Тендеры - все ТЗ и размещение" },
-    { "id": "xlsx-kuznetsova-2", "name": "Мултон весь" },
-    { "id": "xlsx-kuznetsova-3", "name": "Орими" },
-    { "id": "xlsx-kuznetsova-4", "name": "работа с Клод" }
+  "columns": [
+    {
+      "id": "lebedeva",
+      "name": "Светлана Лебедева",
+      "color": "#cf6c32",
+      "suppliers": [
+        {
+          "id": "xlsx-lebedeva-1",
+          "name": "Сигма"
+        },
+        {
+          "id": "xlsx-lebedeva-2",
+          "name": "Рекит"
+        },
+        {
+          "id": "xlsx-lebedeva-3",
+          "name": "Тосол Синтез (Малыши)"
+        },
+        {
+          "id": "xlsx-lebedeva-4",
+          "name": "Логистика"
+        },
+        {
+          "id": "xlsx-lebedeva-5",
+          "name": "Синергетик"
+        },
+        {
+          "id": "baseline-lebedeva-1",
+          "name": "Барилла"
+        },
+        {
+          "id": "baseline-lebedeva-2",
+          "name": "Бумфа"
+        },
+        {
+          "id": "baseline-lebedeva-3",
+          "name": "Гигиена"
+        },
+        {
+          "id": "baseline-lebedeva-4",
+          "name": "Грасс Опт"
+        },
+        {
+          "id": "baseline-lebedeva-5",
+          "name": "Интербытхим"
+        },
+        {
+          "id": "baseline-lebedeva-6",
+          "name": "Макси Трейд"
+        },
+        {
+          "id": "baseline-lebedeva-7",
+          "name": "БТК"
+        },
+        {
+          "id": "baseline-lebedeva-8",
+          "name": "Объединенные Кондитеры"
+        },
+        {
+          "id": "baseline-lebedeva-9",
+          "name": "Северная Лига"
+        },
+        {
+          "id": "baseline-lebedeva-10",
+          "name": "Субмераль"
+        },
+        {
+          "id": "baseline-lebedeva-11",
+          "name": "ТДМ"
+        },
+        {
+          "id": "baseline-lebedeva-12",
+          "name": "Тайли Сити"
+        },
+        {
+          "id": "baseline-lebedeva-13",
+          "name": "Товары из Европы"
+        },
+        {
+          "id": "baseline-lebedeva-14",
+          "name": "Феликс ТС"
+        },
+        {
+          "id": "baseline-lebedeva-15",
+          "name": "Марьина Роша"
+        },
+        {
+          "id": "baseline-lebedeva-16",
+          "name": "Эклиф"
+        },
+        {
+          "id": "baseline-lebedeva-17",
+          "name": "Ю Профит"
+        },
+        {
+          "id": "baseline-lebedeva-18",
+          "name": "Юрвес"
+        },
+        {
+          "id": "baseline-lebedeva-19",
+          "name": "Сясьский ЦБК"
+        },
+        {
+          "id": "baseline-lebedeva-20",
+          "name": "ТД Энерго"
+        },
+        {
+          "id": "baseline-lebedeva-21",
+          "name": "ЮниРусь"
+        },
+        {
+          "id": "baseline-lebedeva-22",
+          "name": "Лента"
+        },
+        {
+          "id": "baseline-lebedeva-23",
+          "name": "Магнит"
+        },
+        {
+          "id": "baseline-lebedeva-24",
+          "name": "Метро"
+        },
+        {
+          "id": "baseline-lebedeva-25",
+          "name": "Эласго"
+        },
+        {
+          "id": "baseline-lebedeva-26",
+          "name": "CleanPro (Грасс)"
+        },
+        {
+          "id": "baseline-lebedeva-27",
+          "name": "Агора"
+        },
+        {
+          "id": "baseline-lebedeva-28",
+          "name": "Парфюм"
+        },
+        {
+          "id": "baseline-lebedeva-29",
+          "name": "Комплексн. поставки"
+        },
+        {
+          "id": "baseline-lebedeva-30",
+          "name": "Санрайз"
+        },
+        {
+          "id": "baseline-lebedeva-31",
+          "name": "Химбытоптторг"
+        },
+        {
+          "id": "baseline-lebedeva-32",
+          "name": "Чистый уют"
+        }
+      ]
+    },
+    {
+      "id": "terekhova",
+      "name": "Светлана Терехова",
+      "color": "#31695d",
+      "suppliers": [
+        {
+          "id": "xlsx-terekhova-1",
+          "name": "Бурштат -Прайм"
+        },
+        {
+          "id": "xlsx-terekhova-2",
+          "name": "Селвин-БТ"
+        },
+        {
+          "id": "xlsx-terekhova-3",
+          "name": "Магнит-Прайм"
+        },
+        {
+          "id": "xlsx-terekhova-4",
+          "name": "Мягкий знак"
+        },
+        {
+          "id": "xlsx-terekhova-5",
+          "name": "Юнилевер"
+        },
+        {
+          "id": "xlsx-terekhova-6",
+          "name": "ТДК"
+        },
+        {
+          "id": "xlsx-terekhova-7",
+          "name": "Кинетика"
+        },
+        {
+          "id": "xlsx-terekhova-8",
+          "name": "Логистика"
+        },
+        {
+          "id": "xlsx-terekhova-9",
+          "name": "прайсы"
+        }
+      ]
+    },
+    {
+      "id": "kuznetsova",
+      "name": "Дарья Кузнецова",
+      "color": "#506da8",
+      "suppliers": [
+        {
+          "id": "xlsx-kuznetsova-1",
+          "name": "Тендеры - все ТЗ и размещение"
+        },
+        {
+          "id": "xlsx-kuznetsova-2",
+          "name": "Мултон весь"
+        },
+        {
+          "id": "xlsx-kuznetsova-3",
+          "name": "Орими"
+        },
+        {
+          "id": "xlsx-kuznetsova-4",
+          "name": "работа с Клод"
+        }
+      ]
+    }
   ]
 }
