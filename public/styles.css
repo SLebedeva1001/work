@@ -333,8 +333,14 @@ input:focus, select:focus {
 .app-dialog form { padding: 22px; }
 .app-dialog h2 { margin: 0 0 9px; font-size: 20px; }
 .app-dialog p { margin: 0 0 16px; color: #66716d; font-size: 13px; line-height: 1.45; }
-.app-dialog input { display: block; width: 100%; margin-bottom: 18px; }
-.app-dialog.is-confirm input { display: none; }
+.app-dialog #dialog-input { display: block; width: 100%; margin-bottom: 18px; }
+.app-dialog.is-confirm #dialog-input { display: none; }
+.supplier-edit-fields { display: none; margin: -2px 0 18px; }
+.app-dialog.is-supplier-edit .supplier-edit-fields { display: grid; gap: 14px; }
+.dialog-field { display: grid; gap: 6px; color: #66716d; font-size: 12px; font-weight: 700; }
+.dialog-field select { width: 100%; }
+.dialog-contract { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; }
+.dialog-contract input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .dialog-actions button { height: 34px; padding: 0 14px; border-radius: 6px; cursor: pointer; font-weight: 700; }
 .dialog-cancel { color: var(--ink); background: white; border: 1px solid var(--line); }

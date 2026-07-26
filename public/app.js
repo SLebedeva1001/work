@@ -11,6 +11,8 @@ const dialogForm = document.querySelector("#dialog-form");
 const dialogTitle = document.querySelector("#dialog-title");
 const dialogMessage = document.querySelector("#dialog-message");
 const dialogInput = document.querySelector("#dialog-input");
+const dialogManager = document.querySelector("#dialog-manager");
+const dialogContract = document.querySelector("#dialog-contract");
 const dialogConfirm = document.querySelector("#dialog-confirm");
 const palette = ["#cf6c32", "#31695d", "#506da8", "#8a5a89", "#8b7a32", "#477785"];
 const supplierCollator = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
@@ -47,6 +49,34 @@ function askConfirm(title, message) {
     appDialog.showModal();
     appDialog.addEventListener("close", () => {
       resolve(appDialog.returnValue === "confirm");
+    }, { once: true });
+  });
+}
+
+function askSupplierEdit(located) {
+  return new Promise((resolve) => {
+    appDialog.className = "app-dialog is-supplier-edit";
+    dialogTitle.textContent = "Редактировать поставщика";
+    dialogMessage.textContent = "Здесь можно изменить название, контракт и передать карточку другому менеджеру.";
+    dialogInput.value = located.supplier.name;
+    dialogManager.innerHTML = board.columns
+      .map((column) => `<option value="${escapeText(column.id)}">${escapeText(column.name)}</option>`)
+      .join("");
+    dialogManager.value = located.column.id;
+    dialogContract.checked = Boolean(located.supplier.contract);
+    dialogConfirm.textContent = "Сохранить";
+    dialogConfirm.className = "dialog-confirm";
+    appDialog.showModal();
+    dialogInput.focus();
+    dialogInput.select();
+    appDialog.addEventListener("close", () => {
+      resolve(appDialog.returnValue === "confirm"
+        ? {
+            name: dialogInput.value.trim(),
+            columnId: dialogManager.value,
+            contract: dialogContract.checked
+          }
+        : null);
     }, { once: true });
   });
 }
@@ -229,9 +259,16 @@ boardElement.addEventListener("click", async (event) => {
   if (editButton) {
     const located = locateSupplier(editButton.closest(".supplier-card").dataset.id);
     if (!located) return;
-    const editedName = await askText("Изменить название", located.supplier.name);
-    if (!editedName || editedName === located.supplier.name) return;
-    located.supplier.name = editedName.slice(0, 160);
+    const edited = await askSupplierEdit(located);
+    if (!edited) return;
+    const targetColumn = board.columns.find((column) => column.id === edited.columnId);
+    if (!targetColumn) return;
+    located.supplier.name = edited.name.slice(0, 160);
+    located.supplier.contract = edited.contract;
+    if (targetColumn.id !== located.column.id) {
+      located.column.suppliers.splice(located.index, 1);
+      targetColumn.suppliers.push(located.supplier);
+    }
     render();
     await saveBoard();
     return;
