@@ -361,6 +361,15 @@ input:focus, select:focus {
   .add-button, .export-button, .column-button { width: 100%; }
 }
 
+@media (pointer: coarse) {
+  .supplier-card {
+    cursor: default;
+    touch-action: pan-y;
+  }
+
+  .supplier-card:active { cursor: default; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }

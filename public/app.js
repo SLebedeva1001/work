@@ -344,6 +344,7 @@ function updatePointerDrag(event) {
 }
 
 boardElement.addEventListener("pointerdown", (event) => {
+  if (window.matchMedia("(pointer: coarse)").matches) return;
   if (event.button !== 0 || event.target.closest("button, input, label")) return;
   const card = event.target.closest(".supplier-card");
   if (!card) return;
