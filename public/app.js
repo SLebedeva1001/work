@@ -17,6 +17,18 @@ const dialogConfirm = document.querySelector("#dialog-confirm");
 const palette = ["#cf6c32", "#31695d", "#506da8", "#8a5a89", "#8b7a32", "#477785"];
 const supplierCollator = new Intl.Collator("ru", { sensitivity: "base", numeric: true });
 
+function isInactiveColumn(column) {
+  const name = column.name.trim().toLocaleLowerCase("ru");
+  return name.includes("не работаем") || name.includes("не используем");
+}
+
+function compareColumns(left, right) {
+  const leftInactive = isInactiveColumn(left);
+  const rightInactive = isInactiveColumn(right);
+  if (leftInactive !== rightInactive) return leftInactive ? 1 : -1;
+  return supplierCollator.compare(left.name, right.name);
+}
+
 let board = { columns: [] };
 let savedBoard = structuredClone(board);
 let toastTimer;
@@ -115,6 +127,7 @@ function renderManagerOptions() {
 }
 
 function render() {
+  board.columns.sort(compareColumns);
   board.columns.forEach((column) => {
     column.suppliers.sort((left, right) => supplierCollator.compare(left.name, right.name));
   });
@@ -148,6 +161,7 @@ function render() {
             <h2>${escapeText(column.name)}</h2>
             <span class="column-header-actions">
               <span class="count" aria-label="Количество поставщиков">${column.suppliers.length}</span>
+              <button class="edit-column-button" type="button" aria-label="Изменить название колонки ${escapeText(column.name)}" title="Изменить имя менеджера">✎</button>
               <button class="delete-column-button" type="button" aria-label="Удалить колонку ${escapeText(column.name)}" title="Удалить колонку">×</button>
             </span>
           </header>
@@ -228,18 +242,32 @@ form.addEventListener("submit", async (event) => {
 columnButton.addEventListener("click", async () => {
   const name = await askText("Новая колонка", "", "Введите имя менеджера или название группы.");
   if (!name) return;
-  board.columns.push({
+  const newColumn = {
     id: `column-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
     name: name.slice(0, 80),
     color: palette[board.columns.length % palette.length],
     suppliers: []
-  });
+  };
+  board.columns.push(newColumn);
   render();
-  managerSelect.value = board.columns.at(-1).id;
+  managerSelect.value = newColumn.id;
   await saveBoard();
 });
 
 boardElement.addEventListener("click", async (event) => {
+  const columnEdit = event.target.closest(".edit-column-button");
+  if (columnEdit) {
+    const columnElement = columnEdit.closest(".column");
+    const column = board.columns.find((item) => item.id === columnElement.dataset.column);
+    if (!column) return;
+    const name = await askText("Изменить имя менеджера", column.name, "Введите имя и фамилию или новое название колонки.");
+    if (!name || name === column.name) return;
+    column.name = name.slice(0, 80);
+    render();
+    await saveBoard();
+    return;
+  }
+
   const columnDelete = event.target.closest(".delete-column-button");
   if (columnDelete) {
     const columnElement = columnDelete.closest(".column");

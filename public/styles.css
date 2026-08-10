@@ -165,7 +165,7 @@ input:focus, select:focus {
 
 .column-header-actions { display: flex; align-items: center; gap: 4px; }
 
-.delete-column-button {
+.delete-column-button, .edit-column-button {
   display: grid;
   width: 22px;
   height: 22px;
@@ -179,6 +179,8 @@ input:focus, select:focus {
   font-size: 16px;
 }
 
+.edit-column-button { font-size: 14px; }
+.edit-column-button:hover { color: var(--column-color, var(--green)); background: #edf1ef; }
 .delete-column-button:hover { color: #a3433b; background: #f8ece9; }
 
 .card-list { flex: 1; min-height: 120px; padding: 10px; }
