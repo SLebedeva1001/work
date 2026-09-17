@@ -3,10 +3,14 @@ services:
     name: supplier-kanban
     runtime: node
     plan: starter
-    buildCommand: ""
+    buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /board
+    healthCheckPath: /api/health
     envVars:
+      - key: ADMIN_EMAIL
+        value: s.vento85@gmail.com
+      - key: APP_URL
+        value: https://work-uw04.onrender.com
       - key: DATA_FILE
         value: /var/data/board.json
     disk:
