@@ -6,6 +6,7 @@ import "./styles.css";
 const STATUSES = ["Новая", "В процессе", "Ожидание", "Выполнено", "Отменено"];
 const ACTIVE_STATUSES = new Set(["Новая", "В процессе", "Ожидание"]);
 const COLORS = ["#d96c3f", "#2f766d", "#526fa8", "#9c5d91", "#ad7b23", "#637056", "#77589b"];
+const ACCESS_GROUPS = { admin: "Администратор", management: "Руководство", buyer: "Закупщик", member: "Обычный сотрудник" };
 const collator = new Intl.Collator("ru", { sensitivity: "base" });
 
 function formatDate(value, includeTime = false) {
@@ -267,14 +268,15 @@ function SuppliersPage({ workspace, mutate }) {
   </section>;
 }
 
-function EmployeeForm({ employee, onSave, onClose }) {
-  const [form, setForm] = useState(employee || { name: "", email: "", color: COLORS[0], active: true, isBuyer: true, role: "member" });
+function EmployeeForm({ employee, departments, onSave, onClose }) {
+  const [form, setForm] = useState(employee || { name: "", email: "", color: COLORS[0], active: true, isBuyer: false, department: "", accessGroup: "member", role: "member" });
   const field = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   return <Modal title={employee ? "Сотрудник" : "Новый сотрудник"} onClose={onClose}><form className="stack-form" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
     <label>Имя и фамилия<input value={form.name} onChange={(e) => field("name", e.target.value)} required /></label>
     <label>Электронная почта<input type="email" value={form.email} onChange={(e) => field("email", e.target.value)} /></label>
+    <label>Отдел<input list="department-list" value={form.department || ""} onChange={(e) => field("department", e.target.value)} placeholder="Выберите или введите новый" /><datalist id="department-list">{departments.map((item) => <option value={item} key={item} />)}</datalist></label>
     <label>Цвет<input type="color" value={form.color} onChange={(e) => field("color", e.target.value)} /></label>
-    <label>Роль<select value={form.role} onChange={(e) => field("role", e.target.value)}><option value="member">Сотрудник</option><option value="admin">Администратор</option></select></label>
+    <label>Группа доступа<select value={form.accessGroup || (form.role === "admin" ? "admin" : form.isBuyer !== false ? "buyer" : "member")} onChange={(e) => { field("accessGroup", e.target.value); field("role", e.target.value === "admin" ? "admin" : "member"); }} >{Object.entries(ACCESS_GROUPS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <label className="check-line"><input type="checkbox" checked={form.active} onChange={(e) => field("active", e.target.checked)} /> Работает в команде</label>
     <label className="check-line"><input type="checkbox" checked={form.isBuyer !== false} onChange={(e) => field("isBuyer", e.target.checked)} /> Закупщик — показывать на доске поставщиков</label>
     <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Отмена</button><button className="primary">Сохранить</button></div>
@@ -282,11 +284,20 @@ function EmployeeForm({ employee, onSave, onClose }) {
 }
 
 function EmployeesPage({ workspace, mutate, admin }) {
-  const [editing, setEditing] = useState(null); const [adding, setAdding] = useState(false); const [message, setMessage] = useState("");
+  const [editing, setEditing] = useState(null); const [adding, setAdding] = useState(false); const [message, setMessage] = useState(""); const [departmentFilter, setDepartmentFilter] = useState("all");
+  const departments = [...new Set([...(workspace.departments || []), ...workspace.employees.map((item) => item.department).filter(Boolean)])].sort(collator.compare);
   function save(values) {
-    mutate((draft) => { if (editing) Object.assign(draft.employees.find((item) => item.id === editing.id), values);
+    mutate((draft) => { if (values.department && !(draft.departments || []).includes(values.department)) (draft.departments ||= []).push(values.department);
+      if (editing) Object.assign(draft.employees.find((item) => item.id === editing.id), values);
       else draft.employees.push({ ...values, id: id("employee"), userId: "" }); });
     setEditing(null); setAdding(false);
+  }
+  function removeEmployee(employee) {
+    if (employee.role === "admin" || employee.accessGroup === "admin") return setMessage("Администратора нельзя удалить, пока ему не назначена другая группа доступа.");
+    const linked = workspace.tasks.some((task) => task.assigneeIds.includes(employee.id)) || workspace.suppliers.some((supplier) => supplier.ownerEmployeeId === employee.id);
+    if (linked) return setMessage("Сначала переназначьте задачи и поставщиков этого сотрудника. После этого его можно удалить.");
+    if (!window.confirm(`Удалить сотрудника «${employee.name}»?`)) return;
+    mutate((draft) => { draft.employees = draft.employees.filter((item) => item.id !== employee.id); });
   }
   async function invite(employee) {
     if (!employee.email) return setMessage("Сначала укажите почту сотрудника.");
@@ -302,11 +313,12 @@ function EmployeesPage({ workspace, mutate, admin }) {
   }
   return <section className="page-content"><div className="section-heading"><div><p className="eyebrow">КОМАНДА</p><h1>Сотрудники</h1></div>{admin && <button className="primary" onClick={() => setAdding(true)}>+ Сотрудник</button>}</div>
     {admin && <p className="section-note">Добавьте имя и почту сотрудника, сохраните карточку, затем нажмите «Пригласить». Коллега получит письмо и задаст собственный пароль.</p>}
-    {message && <div className="notice">{message}</div>}<div className="employee-grid">{[...workspace.employees].sort((a, b) => collator.compare(a.name, b.name)).map((employee) => {
+    <div className="toolbar"><select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}><option value="all">Все отделы</option>{departments.map((item) => <option value={item} key={item}>{item}</option>)}</select></div>
+    {message && <div className="notice">{message}</div>}<div className="employee-grid">{[...workspace.employees].filter((item) => departmentFilter === "all" || item.department === departmentFilter).sort((a, b) => collator.compare(a.name, b.name)).map((employee) => {
       const activeTasks = workspace.tasks.filter((task) => ACTIVE_STATUSES.has(task.status) && task.assigneeIds.includes(employee.id)).length;
-      return <article className={`employee-card ${!employee.active ? "disabled" : ""}`} key={employee.id}><div className="avatar" style={{ background: employee.color }}>{employee.name.split(" ").map((x) => x[0]).slice(0, 2).join("")}</div><div><h3>{employee.name}</h3><p>{employee.email || "Почта не указана"}</p><strong>{activeTasks} активных задач</strong></div>
-        <div className="employee-actions">{admin && <><button className="secondary small" onClick={() => setEditing(employee)}>Изменить</button>{employee.email && !employee.userId && <><button className="secondary small" onClick={() => invite(employee)}>Пригласить письмом</button><button className="secondary small" onClick={() => createTemporaryAccess(employee)}>Создать доступ без письма</button></>}</>}</div></article>; })}</div>
-    {(adding || editing) && <EmployeeForm employee={editing} onSave={save} onClose={() => { setEditing(null); setAdding(false); }} />}</section>;
+      return <article className={`employee-card ${!employee.active ? "disabled" : ""}`} key={employee.id}><div className="avatar" style={{ background: employee.color }}>{employee.name.split(" ").map((x) => x[0]).slice(0, 2).join("")}</div><div><h3>{employee.name}</h3><p>{employee.department || "Без отдела"} · {ACCESS_GROUPS[employee.accessGroup] || "Сотрудник"}</p><p>{employee.email || "Почта не указана"}</p><strong>{activeTasks} активных задач</strong></div>
+        <div className="employee-actions">{admin && <><button className="secondary small" onClick={() => setEditing(employee)}>Изменить</button>{employee.email && !employee.userId && <><button className="secondary small" onClick={() => invite(employee)}>Пригласить письмом</button><button className="secondary small" onClick={() => createTemporaryAccess(employee)}>Создать доступ без письма</button></>}<button className="danger small" onClick={() => removeEmployee(employee)}>Удалить</button></>}</div></article>; })}</div>
+    {(adding || editing) && <EmployeeForm employee={editing} departments={departments} onSave={save} onClose={() => { setEditing(null); setAdding(false); }} />}</section>;
 }
 
 function App() {
@@ -336,13 +348,13 @@ function App() {
 
   const currentEmployee = me?.employee || workspace.employees.find((item) => item.email?.toLowerCase() === me?.user?.email?.toLowerCase());
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><span>BT</span><div><strong>Baby Trend</strong><small>Рабочее пространство</small></div></div>
-    <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button><button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button><button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
+    <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
     <div className="sidebar-user"><EmployeeChip employee={currentEmployee} /><small>{me?.user?.email}</small><button onClick={logout}>Выйти</button></div></aside>
     <main className="main-area">{error && <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div>}{saving && <div className="saving">Сохраняем…</div>}
       {page === "tasks" && <TasksPage workspace={workspace} currentEmployee={currentEmployee} mutate={mutate} />}
-      {page === "suppliers" && <SuppliersPage workspace={workspace} mutate={mutate} />}
+      {page === "suppliers" && me?.canViewSuppliers && <SuppliersPage workspace={workspace} mutate={mutate} />}
       {page === "employees" && <EmployeesPage workspace={workspace} mutate={mutate} admin={me?.isAdmin} />}</main>
-    <nav className="mobile-nav"><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button><button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button><button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
+    <nav className={`mobile-nav ${me?.canViewSuppliers ? "" : "two"}`}><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
   </div>;
 }
 

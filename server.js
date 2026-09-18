@@ -120,7 +120,8 @@ function workspaceFromBoard(board) {
   const employees = board.columns.filter((column) => !inactiveColumn(column.name)).map((column) => ({
     id: column.id, name: column.name,
     email: column.name.toLocaleLowerCase("ru").includes("лебедева") ? ADMIN_EMAIL : "",
-    color: column.color, active: true, isBuyer: true,
+    color: column.color, active: true, isBuyer: true, department: "Закупки",
+    accessGroup: column.name.toLocaleLowerCase("ru").includes("лебедева") ? "admin" : "buyer",
     role: column.name.toLocaleLowerCase("ru").includes("лебедева") ? "admin" : "member", userId: ""
   }));
   const suppliers = board.columns.flatMap((column) => column.suppliers.map((supplier) => ({
@@ -128,7 +129,7 @@ function workspaceFromBoard(board) {
     active: !inactiveColumn(column.name), contract: Boolean(supplier.contract), deliveryTerms: "",
     paymentDeferral: "", categories: [], brands: [], contacts: [], notes: "", createdAt: now, updatedAt: now
   })));
-  return { version: 2, revision: 1, employees, suppliers, tasks: [], createdAt: now, updatedAt: now };
+  return { version: 2, revision: 1, departments: ["Закупки", "Руководство", "Оптовые продажи", "Маркетплейсы", "Склад"], employees, suppliers, tasks: [], createdAt: now, updatedAt: now };
 }
 function workspaceToBoard(workspace) {
   const columns = workspace.employees.filter((employee) => employee.active && employee.isBuyer !== false).map((employee) => ({
@@ -145,10 +146,18 @@ function validWorkspace(value) {
   return value && typeof value === "object" && Array.isArray(value.employees) && Array.isArray(value.suppliers) &&
     Array.isArray(value.tasks) && value.employees.length <= 100 && value.suppliers.length <= 5000 && value.tasks.length <= 10000;
 }
+function normalizeWorkspace(workspace) {
+  workspace.departments = Array.isArray(workspace.departments) ? workspace.departments : ["Закупки", "Руководство", "Оптовые продажи", "Маркетплейсы", "Склад"];
+  workspace.employees.forEach((employee) => {
+    if (!employee.department) employee.department = employee.isBuyer !== false ? "Закупки" : "";
+    if (!employee.accessGroup) employee.accessGroup = employee.role === "admin" ? "admin" : employee.isBuyer !== false ? "buyer" : "member";
+  });
+  return workspace;
+}
 async function readWorkspace() {
   if (!USE_SUPABASE) {
     const workspaceFile = `${DATA_FILE}.workspace.json`;
-    try { return JSON.parse(await fs.readFile(workspaceFile, "utf8")); }
+    try { return normalizeWorkspace(JSON.parse(await fs.readFile(workspaceFile, "utf8"))); }
     catch (error) {
       if (error.code !== "ENOENT") throw error;
       const workspace = workspaceFromBoard(await readFileBoard());
@@ -157,7 +166,7 @@ async function readWorkspace() {
     }
   }
   const rows = await supabaseRequest("board_state?id=eq.workspace&select=data");
-  if (rows.length) return rows[0].data;
+  if (rows.length) return normalizeWorkspace(rows[0].data);
   const board = await readBoard();
   const workspace = workspaceFromBoard(board);
   await supabaseRequest("board_state?on_conflict=id", {
@@ -192,6 +201,14 @@ function userEmployee(workspace, user) {
     workspace.employees.find((employee) => employee.email && employee.email.toLowerCase() === user.email?.toLowerCase());
 }
 function isAdmin(workspace, user) { return user.email?.toLowerCase() === ADMIN_EMAIL || userEmployee(workspace, user)?.role === "admin"; }
+function canViewSuppliers(workspace, user) {
+  const employee = userEmployee(workspace, user);
+  return isAdmin(workspace, user) || ["management", "buyer"].includes(employee?.accessGroup);
+}
+function workspaceForUser(workspace, user) {
+  if (canViewSuppliers(workspace, user)) return workspace;
+  return { ...workspace, suppliers: [] };
+}
 
 async function serveStatic(req, res) {
   const urlPath = new URL(req.url, `http://${req.headers.host || "localhost"}`).pathname;
@@ -243,7 +260,7 @@ async function handler(req, res) {
       const workspace = await readWorkspace();
       let employee = userEmployee(workspace, user);
       if (employee && !employee.userId) { employee.userId = user.id; await writeWorkspace(workspace); }
-      return sendJson(res, 200, { user: { id: user.id, email: user.email }, employee, isAdmin: isAdmin(workspace, user),
+      return sendJson(res, 200, { user: { id: user.id, email: user.email }, employee, isAdmin: isAdmin(workspace, user), canViewSuppliers: canViewSuppliers(workspace, user),
         mustChangePassword: Boolean(user.user_metadata?.must_change_password) });
     }
     if (pathname === "/api/auth/password" && req.method === "PUT") {
@@ -291,7 +308,7 @@ async function handler(req, res) {
       const user = await requireUser(req);
       const workspace = await readWorkspace();
       if (!userEmployee(workspace, user) && user.email?.toLowerCase() !== ADMIN_EMAIL) return sendJson(res, 403, { error: "Пользователь не добавлен в список сотрудников" });
-      return sendJson(res, 200, workspace);
+      return sendJson(res, 200, workspaceForUser(workspace, user));
     }
     if (pathname === "/api/workspace" && req.method === "PUT") {
       const user = await requireUser(req);
@@ -300,9 +317,14 @@ async function handler(req, res) {
       const incoming = await readRequestBody(req);
       if (!validWorkspace(incoming)) return sendJson(res, 400, { error: "Некорректные данные приложения" });
       if (Number(incoming.revision) !== Number(current.revision)) return sendJson(res, 409, { error: "Данные уже изменил другой сотрудник. Обновите страницу." });
+      if (!isAdmin(current, user)) {
+        incoming.employees = current.employees;
+        incoming.departments = current.departments;
+      }
+      if (!canViewSuppliers(current, user)) incoming.suppliers = current.suppliers;
       incoming.revision = Number(current.revision || 0) + 1;
       await writeWorkspace(incoming);
-      return sendJson(res, 200, incoming);
+      return sendJson(res, 200, workspaceForUser(incoming, user));
     }
     if (pathname === "/board" && req.method === "GET") return sendJson(res, 200, await readBoard());
     if (pathname === "/board" && req.method === "POST") {
