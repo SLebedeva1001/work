@@ -293,12 +293,19 @@ function EmployeesPage({ workspace, mutate, admin }) {
     try { await api("/api/admin/invite", { method: "POST", body: JSON.stringify({ email: employee.email, name: employee.name }) }); setMessage(`Приглашение отправлено: ${employee.email}`); }
     catch (error) { setMessage(error.message); }
   }
+  async function createTemporaryAccess(employee) {
+    if (!employee.email) return setMessage("Сначала укажите почту сотрудника.");
+    try {
+      const result = await api("/api/admin/temporary-access", { method: "POST", body: JSON.stringify({ email: employee.email, name: employee.name }) });
+      setMessage(<>Временный пароль для <b>{employee.email}</b>: <code>{result.temporaryPassword}</code><br />Передайте его лично. При первом входе сотрудник обязательно задаст новый пароль.</>);
+    } catch (error) { setMessage(error.message); }
+  }
   return <section className="page-content"><div className="section-heading"><div><p className="eyebrow">КОМАНДА</p><h1>Сотрудники</h1></div>{admin && <button className="primary" onClick={() => setAdding(true)}>+ Сотрудник</button>}</div>
     {admin && <p className="section-note">Добавьте имя и почту сотрудника, сохраните карточку, затем нажмите «Пригласить». Коллега получит письмо и задаст собственный пароль.</p>}
     {message && <div className="notice">{message}</div>}<div className="employee-grid">{[...workspace.employees].sort((a, b) => collator.compare(a.name, b.name)).map((employee) => {
       const activeTasks = workspace.tasks.filter((task) => ACTIVE_STATUSES.has(task.status) && task.assigneeIds.includes(employee.id)).length;
       return <article className={`employee-card ${!employee.active ? "disabled" : ""}`} key={employee.id}><div className="avatar" style={{ background: employee.color }}>{employee.name.split(" ").map((x) => x[0]).slice(0, 2).join("")}</div><div><h3>{employee.name}</h3><p>{employee.email || "Почта не указана"}</p><strong>{activeTasks} активных задач</strong></div>
-        <div className="employee-actions">{admin && <><button className="secondary small" onClick={() => setEditing(employee)}>Изменить</button>{employee.email && !employee.userId && <button className="secondary small" onClick={() => invite(employee)}>Пригласить</button>}</>}</div></article>; })}</div>
+        <div className="employee-actions">{admin && <><button className="secondary small" onClick={() => setEditing(employee)}>Изменить</button>{employee.email && !employee.userId && <><button className="secondary small" onClick={() => invite(employee)}>Пригласить письмом</button><button className="secondary small" onClick={() => createTemporaryAccess(employee)}>Создать доступ без письма</button></>}</>}</div></article>; })}</div>
     {(adding || editing) && <EmployeeForm employee={editing} onSave={save} onClose={() => { setEditing(null); setAdding(false); }} />}</section>;
 }
 
@@ -310,7 +317,7 @@ function App() {
 
   async function load() {
     if (!getToken()) return setSessionReady(false);
-    try { const [profile, data] = await Promise.all([api("/api/auth/me"), api("/api/workspace")]); setMe(profile); setWorkspace(data); setSessionReady(true); setError(""); }
+    try { const [profile, data] = await Promise.all([api("/api/auth/me"), api("/api/workspace")]); setMe(profile); setWorkspace(data); setSessionReady(true); setPasswordSetup(Boolean(profile.mustChangePassword)); setError(""); }
     catch (err) { if (err.status === 401) { setToken(""); setSessionReady(false); } else setError(err.message); }
   }
   useEffect(() => { if (sessionReady) load(); }, [sessionReady]);

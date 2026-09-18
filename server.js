@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
+const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
@@ -242,16 +243,35 @@ async function handler(req, res) {
       const workspace = await readWorkspace();
       let employee = userEmployee(workspace, user);
       if (employee && !employee.userId) { employee.userId = user.id; await writeWorkspace(workspace); }
-      return sendJson(res, 200, { user: { id: user.id, email: user.email }, employee, isAdmin: isAdmin(workspace, user) });
+      return sendJson(res, 200, { user: { id: user.id, email: user.email }, employee, isAdmin: isAdmin(workspace, user),
+        mustChangePassword: Boolean(user.user_metadata?.must_change_password) });
     }
     if (pathname === "/api/auth/password" && req.method === "PUT") {
       const header = req.headers.authorization || "";
       const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-      await requireUser(req);
+      const user = await requireUser(req);
       const body = await readRequestBody(req);
       if (cleanText(body.password, 200).length < 8) return sendJson(res, 400, { error: "Пароль должен содержать не менее 8 символов" });
-      await authRequest("user", { method: "PUT", body: JSON.stringify({ password: body.password }) }, token);
+      await authRequest("user", { method: "PUT", body: JSON.stringify({ password: body.password,
+        data: { ...(user.user_metadata || {}), must_change_password: false } }) }, token);
       return sendJson(res, 200, { ok: true });
+    }
+    if (pathname === "/api/admin/temporary-access" && req.method === "POST") {
+      const user = await requireUser(req);
+      const workspace = await readWorkspace();
+      if (!isAdmin(workspace, user)) return sendJson(res, 403, { error: "Только администратор может создавать доступ" });
+      const body = await readRequestBody(req);
+      const email = cleanText(body.email, 200).toLowerCase();
+      const name = cleanText(body.name, 100);
+      if (!email) return sendJson(res, 400, { error: "Укажите электронную почту" });
+      const temporaryPassword = `${crypto.randomBytes(9).toString("base64url")}aA1!`;
+      const users = await authRequest("admin/users?page=1&per_page=1000");
+      const existing = users.users?.find((item) => item.email?.toLowerCase() === email);
+      const attributes = { password: temporaryPassword, email_confirm: true,
+        user_metadata: { ...(existing?.user_metadata || {}), full_name: name, must_change_password: true } };
+      if (existing) await authRequest(`admin/users/${existing.id}`, { method: "PUT", body: JSON.stringify(attributes) });
+      else await authRequest("admin/users", { method: "POST", body: JSON.stringify({ email, ...attributes }) });
+      return sendJson(res, 200, { ok: true, temporaryPassword });
     }
     if (pathname === "/api/admin/invite" && req.method === "POST") {
       const user = await requireUser(req);
