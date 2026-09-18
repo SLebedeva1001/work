@@ -318,6 +318,7 @@ async function handler(req, res) {
       if (!validWorkspace(incoming)) return sendJson(res, 400, { error: "Некорректные данные приложения" });
       if (Number(incoming.revision) !== Number(current.revision)) return sendJson(res, 409, { error: "Данные уже изменил другой сотрудник. Обновите страницу." });
       if (!isAdmin(current, user)) {
+        if (current.tasks.some((task) => !incoming.tasks.some((item) => item.id === task.id))) return sendJson(res, 403, { error: "Удалять задачи из архива может только администратор" });
         incoming.employees = current.employees;
         incoming.departments = current.departments;
       }

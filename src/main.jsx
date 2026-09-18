@@ -116,7 +116,7 @@ function TaskForm({ employees, task, onSave, onClose }) {
   </Modal>;
 }
 
-function TaskCard({ task, employees, currentEmployee, mutate }) {
+function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [update, setUpdate] = useState("");
@@ -149,6 +149,10 @@ function TaskCard({ task, employees, currentEmployee, mutate }) {
     }); });
     setUpdate(""); setOpen(true);
   }
+  function removeTask() {
+    if (!window.confirm(`Удалить задачу «${task.title}» из архива без возможности восстановления?`)) return;
+    mutate((workspace) => { workspace.tasks = workspace.tasks.filter((item) => item.id !== task.id); });
+  }
 
   return <article className={`task-card status-${task.status.replaceAll(" ", "-").toLowerCase()}`}>
     <button className="task-summary" onClick={() => setOpen(!open)}>
@@ -160,7 +164,7 @@ function TaskCard({ task, employees, currentEmployee, mutate }) {
     </button>
     {open && <div className="task-details">
       <div className="task-meta"><span>Создана {formatDate(task.createdAt)}</span><span>Начал: {employee(task.createdBy)?.name || "—"}</span>
-        <button className="secondary small" onClick={() => setEditing(true)}>Редактировать</button></div>
+        <button className="secondary small" onClick={() => setEditing(true)}>Редактировать</button>{admin && !ACTIVE_STATUSES.has(task.status) && <button className="danger small" onClick={removeTask}>Удалить из архива</button>}</div>
       {ACTIVE_STATUSES.has(task.status) && <form className="quick-update" onSubmit={addUpdate}>
         <input value={update} onChange={(e) => setUpdate(e.target.value)} placeholder="Что изменилось сегодня?" /><button className="primary">Добавить обновление</button>
       </form>}
@@ -172,7 +176,7 @@ function TaskCard({ task, employees, currentEmployee, mutate }) {
   </article>;
 }
 
-function TasksPage({ workspace, currentEmployee, mutate }) {
+function TasksPage({ workspace, currentEmployee, mutate, admin }) {
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [archive, setArchive] = useState(false);
@@ -198,7 +202,7 @@ function TasksPage({ workspace, currentEmployee, mutate }) {
       <div className="segmented"><button className={!archive ? "active" : ""} onClick={() => setArchive(false)}>Активные</button><button className={archive ? "active" : ""} onClick={() => setArchive(true)}>Архив</button></div>
       <span className="result-count">{tasks.length} задач</span>
     </div>
-    <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} />)}
+    <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
       {!tasks.length && <div className="empty-panel"><h3>Здесь пока нет задач</h3><p>Создайте новую задачу или измените фильтры.</p></div>}</div>
     {adding && <TaskForm employees={workspace.employees} onSave={createTask} onClose={() => setAdding(false)} />}
   </section>;
@@ -351,7 +355,7 @@ function App() {
     <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
     <div className="sidebar-user"><EmployeeChip employee={currentEmployee} /><small>{me?.user?.email}</small><button onClick={logout}>Выйти</button></div></aside>
     <main className="main-area">{error && <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div>}{saving && <div className="saving">Сохраняем…</div>}
-      {page === "tasks" && <TasksPage workspace={workspace} currentEmployee={currentEmployee} mutate={mutate} />}
+      {page === "tasks" && <TasksPage workspace={workspace} currentEmployee={currentEmployee} mutate={mutate} admin={me?.isAdmin} />}
       {page === "suppliers" && me?.canViewSuppliers && <SuppliersPage workspace={workspace} mutate={mutate} />}
       {page === "employees" && <EmployeesPage workspace={workspace} mutate={mutate} admin={me?.isAdmin} />}</main>
     <nav className={`mobile-nav ${me?.canViewSuppliers ? "" : "two"}`}><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
