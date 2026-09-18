@@ -21,6 +21,11 @@ function daysInWork(task) {
   return Math.max(1, Math.floor((end - new Date(task.createdAt)) / 86400000) + 1);
 }
 
+function taskParticipantIds(task) {
+  const historyParticipants = (task.updates || []).filter((item) => item.kind === "progress" || item.text?.includes("Статус: Выполнено")).map((item) => item.authorEmployeeId);
+  return [...new Set([task.createdBy, task.completedBy, ...(task.participantIds || []), ...(task.assigneeIds || []), ...historyParticipants].filter(Boolean))];
+}
+
 function localDayKey(value) {
   const date = new Date(value);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -28,7 +33,7 @@ function localDayKey(value) {
 
 function AnalyticsPage({ workspace, employeeFilter, statusFilter }) {
   const [period, setPeriod] = useState(14);
-  const visibleTasks = workspace.tasks.filter((task) => (employeeFilter === "all" || task.assigneeIds.includes(employeeFilter) || (task.participantIds || []).includes(employeeFilter)) && (statusFilter === "all" || task.status === statusFilter));
+  const visibleTasks = workspace.tasks.filter((task) => (employeeFilter === "all" || taskParticipantIds(task).includes(employeeFilter)) && (statusFilter === "all" || task.status === statusFilter));
   const activeTasks = visibleTasks.filter((task) => ACTIVE_STATUSES.has(task.status));
   const completed = visibleTasks.filter((task) => task.status === "Выполнено" && task.completedAt);
   const todayKey = localDayKey(new Date());
@@ -43,7 +48,7 @@ function AnalyticsPage({ workspace, employeeFilter, statusFilter }) {
     const credits = {};
     const tasks = completed.filter((task) => localDayKey(task.completedAt) === day.key);
     tasks.forEach((task) => {
-      const people = [...new Set([...(task.participantIds || []), ...(task.assigneeIds || [])])].filter((id) => employee(id));
+      const people = taskParticipantIds(task).filter((id) => employee(id));
       const credited = people.length ? people : [task.createdBy].filter(Boolean);
       credited.forEach((id) => { credits[id] = (credits[id] || 0) + 1 / Math.max(credited.length, 1); });
     });
@@ -58,6 +63,7 @@ function AnalyticsPage({ workspace, employeeFilter, statusFilter }) {
   })).filter((item) => item.newCount + item.progressCount + item.waitingCount > 0);
   const maxWorkload = Math.max(1, ...workload.map((item) => item.newCount + item.progressCount + item.waitingCount));
   const periodCompleted = completed.filter((task) => periodKeys.has(localDayKey(task.completedAt)));
+  const sharedCompleted = periodCompleted.map((task) => ({ task, people: taskParticipantIds(task).map(employee).filter(Boolean) })).filter((item) => item.people.length > 1);
 
   return <div className="analytics-page">
     <div className="analytics-period"><span>Период</span><select value={period} onChange={(e) => setPeriod(Number(e.target.value))}><option value="14">14 дней</option><option value="30">30 дней</option></select></div>
@@ -65,6 +71,7 @@ function AnalyticsPage({ workspace, employeeFilter, statusFilter }) {
     <div className="analytics-grid"><article className="chart-panel completed-chart"><header><div><h2>Выполнено по дням</h2><p>Одна задача делится поровну между всеми участниками</p></div></header><div className="bar-chart">{dayData.map((day) => <div className="day-column" key={day.key} title={`${day.label}: ${day.tasks.length}`}><div className="day-bar" style={{ height: `${Math.max(day.tasks.length ? 10 : 2, day.tasks.length / maxCompleted * 100)}%` }}>{Object.entries(day.credits).map(([employeeId, value]) => <span key={employeeId} style={{ background: employee(employeeId)?.color || "#789", flex: value }} />)}{!day.tasks.length && <i />}</div><small>{day.label}</small></div>)}</div></article>
       <article className="chart-panel"><header><div><h2>Вклад за период</h2><p>Доли совместных задач</p></div></header><div className="contribution-list">{contribution.map((person) => <div key={person.id}><span><i style={{ background: person.color }} />{person.name}</span><strong>{person.value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}</strong></div>)}{!contribution.length && <p className="empty">За выбранный период выполненных задач нет</p>}</div></article>
     </div>
+    <article className="chart-panel shared-panel"><header><div><h2>Совместно выполнено <b>{sharedCompleted.length}</b></h2><p>Задачи, в которых участвовали два человека или больше</p></div></header><div className="shared-list">{sharedCompleted.map(({ task, people }) => <div key={task.id}><strong>{task.title}</strong><span className="chips">{people.map((person) => <EmployeeChip employee={person} key={person.id} />)}</span><small>{formatDate(task.completedAt)}</small></div>)}{!sharedCompleted.length && <p className="empty">Совместных выполненных задач за выбранный период нет</p>}</div></article>
     <article className="chart-panel workload-panel"><header><div><h2>Текущая загрузка</h2><p>Совместная задача учитывается у каждого текущего исполнителя</p></div><div className="chart-legend"><span><i className="legend-new" />Новая</span><span><i className="legend-progress" />В процессе</span><span><i className="legend-waiting" />Ожидание</span></div></header><div className="workload-list">{workload.map((person) => { const total = person.newCount + person.progressCount + person.waitingCount; return <div className="workload-row" key={person.id}><span>{person.name}</span><div className="workload-track" title={`${total} задач`}><i className="work-new" style={{ width: `${person.newCount / maxWorkload * 100}%` }} /><i className="work-progress" style={{ width: `${person.progressCount / maxWorkload * 100}%` }} /><i className="work-waiting" style={{ width: `${person.waitingCount / maxWorkload * 100}%` }} /></div><strong>{total}</strong></div>; })}{!workload.length && <p className="empty">Активных задач сейчас нет</p>}</div></article>
   </div>;
 }
@@ -179,6 +186,10 @@ function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
       target.title = values.title; target.status = values.status; target.assigneeIds = values.assigneeIds;
       target.updatedAt = new Date().toISOString();
       target.participantIds = [...new Set([...(target.participantIds || []), ...values.assigneeIds])];
+      if (values.status === "Выполнено" && task.status !== "Выполнено" && currentEmployee?.id) {
+        target.completedBy = currentEmployee.id;
+        target.participantIds = [...new Set([...target.participantIds, currentEmployee.id])];
+      }
       target.completedAt = ACTIVE_STATUSES.has(values.status) ? null : (target.completedAt || new Date().toISOString());
       const added = values.assigneeIds.filter((item) => !previous.includes(item)).map((item) => employee(item)?.name).filter(Boolean);
       const removed = previous.filter((item) => !values.assigneeIds.includes(item)).map((item) => employee(item)?.name).filter(Boolean);
