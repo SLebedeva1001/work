@@ -26,10 +26,11 @@ function localDayKey(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function AnalyticsPage({ workspace }) {
+function AnalyticsPage({ workspace, employeeFilter, statusFilter }) {
   const [period, setPeriod] = useState(14);
-  const activeTasks = workspace.tasks.filter((task) => ACTIVE_STATUSES.has(task.status));
-  const completed = workspace.tasks.filter((task) => task.status === "Выполнено" && task.completedAt);
+  const visibleTasks = workspace.tasks.filter((task) => (employeeFilter === "all" || task.assigneeIds.includes(employeeFilter) || (task.participantIds || []).includes(employeeFilter)) && (statusFilter === "all" || task.status === statusFilter));
+  const activeTasks = visibleTasks.filter((task) => ACTIVE_STATUSES.has(task.status));
+  const completed = visibleTasks.filter((task) => task.status === "Выполнено" && task.completedAt);
   const todayKey = localDayKey(new Date());
   const days = Array.from({ length: period }, (_, index) => {
     const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (period - 1 - index));
@@ -242,15 +243,15 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
   }
 
   return <section className="page-content">
-    <div className="section-heading"><div><p className="eyebrow">РАБОТА КОМАНДЫ</p><h1>{view === "analytics" ? "Сводка задач" : archive ? "Архив задач" : "Активные задачи"}</h1></div>
-      {view !== "analytics" && <button className="primary" onClick={() => setAdding(true)}>+ Новая задача</button>}</div>
+    <div className="section-heading"><div><p className="eyebrow">РАБОТА КОМАНДЫ</p><h1>Задачи команды</h1></div>
+      <button className="primary" onClick={() => setAdding(true)}>+ Новая задача</button></div>
     <div className="toolbar">
-      {view !== "analytics" && <><select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}><option value="all">Все сотрудники</option>{workspace.employees.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select>
-      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">Все статусы</option>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></>}
+      <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}><option value="all">Все сотрудники</option>{workspace.employees.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select>
+      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">Все статусы</option>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select>
       <div className="segmented"><button className={view === "active" ? "active" : ""} onClick={() => setView("active")}>Активные</button><button className={view === "archive" ? "active" : ""} onClick={() => setView("archive")}>Архив</button><button className={view === "analytics" ? "active" : ""} onClick={() => setView("analytics")}>Сводка</button></div>
-      {view !== "analytics" && <span className="result-count">{tasks.length} задач</span>}
+      <span className={`result-count ${view === "analytics" ? "placeholder" : ""}`}>{view === "analytics" ? "0 задач" : `${tasks.length} задач`}</span>
     </div>
-    {view === "analytics" ? <AnalyticsPage workspace={workspace} /> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
+    {view === "analytics" ? <AnalyticsPage workspace={workspace} employeeFilter={employeeFilter} statusFilter={statusFilter} /> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
       {!tasks.length && <div className="empty-panel"><h3>Здесь пока нет задач</h3><p>Создайте новую задачу или измените фильтры.</p></div>}</div>
     }
     {adding && <TaskForm employees={workspace.employees} onSave={createTask} onClose={() => setAdding(false)} />}
