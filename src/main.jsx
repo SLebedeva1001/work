@@ -248,7 +248,8 @@ function SuppliersPage({ workspace, mutate }) {
   }
   const buyers = workspace.employees.filter((item) => item.active && item.isBuyer !== false);
   const buyerIds = new Set(buyers.map((item) => item.id));
-  const columns = [...buyers.sort((a, b) => collator.compare(a.name, b.name)), { id: "unassigned", name: "Без закупщика", color: "#b08b45" }, { id: "inactive", name: "Не работаем", color: "#777" }];
+  const hasUnassigned = suppliers.some((item) => item.active && !buyerIds.has(item.ownerEmployeeId));
+  const columns = [...buyers.sort((a, b) => collator.compare(a.name, b.name)), ...(hasUnassigned ? [{ id: "unassigned", name: "Без закупщика", color: "#b08b45" }] : []), { id: "inactive", name: "Не работаем", color: "#777" }];
 
   return <section className="page-content">
     <div className="section-heading"><div><p className="eyebrow">ЕДИНЫЙ СПРАВОЧНИК</p><h1>Поставщики</h1></div><button className="primary" onClick={() => setAdding(true)}>+ Поставщик</button></div>
