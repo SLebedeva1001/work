@@ -21,6 +21,53 @@ function daysInWork(task) {
   return Math.max(1, Math.floor((end - new Date(task.createdAt)) / 86400000) + 1);
 }
 
+function localDayKey(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function AnalyticsPage({ workspace }) {
+  const [period, setPeriod] = useState(14);
+  const activeTasks = workspace.tasks.filter((task) => ACTIVE_STATUSES.has(task.status));
+  const completed = workspace.tasks.filter((task) => task.status === "Выполнено" && task.completedAt);
+  const todayKey = localDayKey(new Date());
+  const days = Array.from({ length: period }, (_, index) => {
+    const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (period - 1 - index));
+    return { key: localDayKey(date), label: new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" }).format(date) };
+  });
+  const periodKeys = new Set(days.map((day) => day.key));
+  const employees = workspace.employees.filter((employee) => employee.active);
+  const employee = (employeeId) => employees.find((item) => item.id === employeeId);
+  const dayData = days.map((day) => {
+    const credits = {};
+    const tasks = completed.filter((task) => localDayKey(task.completedAt) === day.key);
+    tasks.forEach((task) => {
+      const people = [...new Set([...(task.participantIds || []), ...(task.assigneeIds || [])])].filter((id) => employee(id));
+      const credited = people.length ? people : [task.createdBy].filter(Boolean);
+      credited.forEach((id) => { credits[id] = (credits[id] || 0) + 1 / Math.max(credited.length, 1); });
+    });
+    return { ...day, tasks, credits };
+  });
+  const maxCompleted = Math.max(1, ...dayData.map((day) => day.tasks.length));
+  const contribution = employees.map((person) => ({ ...person, value: dayData.reduce((sum, day) => sum + (day.credits[person.id] || 0), 0) })).filter((item) => item.value > 0).sort((a, b) => b.value - a.value);
+  const workload = employees.map((person) => ({ ...person,
+    newCount: activeTasks.filter((task) => task.status === "Новая" && task.assigneeIds.includes(person.id)).length,
+    progressCount: activeTasks.filter((task) => task.status === "В процессе" && task.assigneeIds.includes(person.id)).length,
+    waitingCount: activeTasks.filter((task) => task.status === "Ожидание" && task.assigneeIds.includes(person.id)).length
+  })).filter((item) => item.newCount + item.progressCount + item.waitingCount > 0);
+  const maxWorkload = Math.max(1, ...workload.map((item) => item.newCount + item.progressCount + item.waitingCount));
+  const periodCompleted = completed.filter((task) => periodKeys.has(localDayKey(task.completedAt)));
+
+  return <section className="page-content analytics-page">
+    <div className="section-heading"><div><p className="eyebrow">РЕЗУЛЬТАТЫ КОМАНДЫ</p><h1>Сводка</h1></div><select value={period} onChange={(e) => setPeriod(Number(e.target.value))}><option value="14">14 дней</option><option value="30">30 дней</option></select></div>
+    <div className="metric-grid"><article><span>Сегодня выполнено</span><strong>{completed.filter((task) => localDayKey(task.completedAt) === todayKey).length}</strong></article><article><span>За {period} дней</span><strong>{periodCompleted.length}</strong></article><article><span>Активных задач</span><strong>{activeTasks.length}</strong></article><article><span>В ожидании</span><strong>{activeTasks.filter((task) => task.status === "Ожидание").length}</strong></article></div>
+    <div className="analytics-grid"><article className="chart-panel completed-chart"><header><div><h2>Выполнено по дням</h2><p>Одна задача делится поровну между всеми участниками</p></div></header><div className="bar-chart">{dayData.map((day) => <div className="day-column" key={day.key} title={`${day.label}: ${day.tasks.length}`}><div className="day-bar" style={{ height: `${Math.max(day.tasks.length ? 10 : 2, day.tasks.length / maxCompleted * 100)}%` }}>{Object.entries(day.credits).map(([employeeId, value]) => <span key={employeeId} style={{ background: employee(employeeId)?.color || "#789", flex: value }} />)}{!day.tasks.length && <i />}</div><small>{day.label}</small></div>)}</div></article>
+      <article className="chart-panel"><header><div><h2>Вклад за период</h2><p>Доли совместных задач</p></div></header><div className="contribution-list">{contribution.map((person) => <div key={person.id}><span><i style={{ background: person.color }} />{person.name}</span><strong>{person.value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}</strong></div>)}{!contribution.length && <p className="empty">За выбранный период выполненных задач нет</p>}</div></article>
+    </div>
+    <article className="chart-panel workload-panel"><header><div><h2>Текущая загрузка</h2><p>Совместная задача учитывается у каждого текущего исполнителя</p></div><div className="chart-legend"><span><i className="legend-new" />Новая</span><span><i className="legend-progress" />В процессе</span><span><i className="legend-waiting" />Ожидание</span></div></header><div className="workload-list">{workload.map((person) => { const total = person.newCount + person.progressCount + person.waitingCount; return <div className="workload-row" key={person.id}><span>{person.name}</span><div className="workload-track" title={`${total} задач`}><i className="work-new" style={{ width: `${person.newCount / maxWorkload * 100}%` }} /><i className="work-progress" style={{ width: `${person.progressCount / maxWorkload * 100}%` }} /><i className="work-waiting" style={{ width: `${person.waitingCount / maxWorkload * 100}%` }} /></div><strong>{total}</strong></div>; })}{!workload.length && <p className="empty">Активных задач сейчас нет</p>}</div></article>
+  </section>;
+}
+
 function EmployeeChip({ employee, faded = false }) {
   if (!employee) return null;
   return <span className={`employee-chip ${faded ? "faded" : ""}`} style={{ "--chip": employee.color }}>{employee.name}</span>;
@@ -352,13 +399,14 @@ function App() {
 
   const currentEmployee = me?.employee || workspace.employees.find((item) => item.email?.toLowerCase() === me?.user?.email?.toLowerCase());
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><span>BT</span><div><strong>Baby Trend</strong><small>Рабочее пространство</small></div></div>
-    <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
+    <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button><button className={page === "analytics" ? "active" : ""} onClick={() => setPage("analytics")}><span>▥</span> Сводка</button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
     <div className="sidebar-user"><EmployeeChip employee={currentEmployee} /><small>{me?.user?.email}</small><button onClick={logout}>Выйти</button></div></aside>
     <main className="main-area">{error && <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div>}{saving && <div className="saving">Сохраняем…</div>}
       {page === "tasks" && <TasksPage workspace={workspace} currentEmployee={currentEmployee} mutate={mutate} admin={me?.isAdmin} />}
+      {page === "analytics" && <AnalyticsPage workspace={workspace} />}
       {page === "suppliers" && me?.canViewSuppliers && <SuppliersPage workspace={workspace} mutate={mutate} />}
       {page === "employees" && <EmployeesPage workspace={workspace} mutate={mutate} admin={me?.isAdmin} />}</main>
-    <nav className={`mobile-nav ${me?.canViewSuppliers ? "" : "two"}`}><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
+    <nav className={`mobile-nav ${me?.canViewSuppliers ? "four" : ""}`}><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button><button className={page === "analytics" ? "active" : ""} onClick={() => setPage("analytics")}>▥<small>Сводка</small></button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
   </div>;
 }
 
