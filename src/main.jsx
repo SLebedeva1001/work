@@ -211,7 +211,7 @@ function SupplierForm({ supplier, employees, onSave, onClose }) {
   return <Modal title={supplier ? "Карточка поставщика" : "Новый поставщик"} onClose={onClose} wide>
     <form className="supplier-form" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
       <label className="span-2">Название поставщика<input value={form.name} onChange={(e) => field("name", e.target.value)} required autoFocus /></label>
-      <label>Ответственный закупщик<select value={form.ownerEmployeeId} onChange={(e) => field("ownerEmployeeId", e.target.value)}><option value="">Не назначен</option>{employees.filter((item) => item.active).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+      <label>Ответственный закупщик<select value={form.ownerEmployeeId} onChange={(e) => field("ownerEmployeeId", e.target.value)}><option value="">Не назначен</option>{employees.filter((item) => item.active && item.isBuyer !== false).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
       <label>Статус<select value={form.active ? "active" : "inactive"} onChange={(e) => field("active", e.target.value === "active")}><option value="active">Работаем</option><option value="inactive">Не работаем</option></select></label>
       <label className="span-2 check-line"><input type="checkbox" checked={form.contract} onChange={(e) => field("contract", e.target.checked)} /> Есть контракт</label>
       <label>Условия доставки<textarea rows="3" value={form.deliveryTerms} onChange={(e) => field("deliveryTerms", e.target.value)} placeholder="Минимальная сумма, сроки, регион…" /></label>
@@ -246,26 +246,28 @@ function SuppliersPage({ workspace, mutate }) {
   function moveSupplier(supplierId, ownerEmployeeId, active = true) {
     mutate((draft) => Object.assign(draft.suppliers.find((item) => item.id === supplierId), { ownerEmployeeId, active, updatedAt: new Date().toISOString() }));
   }
-  const columns = [...workspace.employees.filter((item) => item.active).sort((a, b) => collator.compare(a.name, b.name)), { id: "inactive", name: "Не работаем", color: "#777" }];
+  const buyers = workspace.employees.filter((item) => item.active && item.isBuyer !== false);
+  const buyerIds = new Set(buyers.map((item) => item.id));
+  const columns = [...buyers.sort((a, b) => collator.compare(a.name, b.name)), { id: "unassigned", name: "Без закупщика", color: "#b08b45" }, { id: "inactive", name: "Не работаем", color: "#777" }];
 
   return <section className="page-content">
     <div className="section-heading"><div><p className="eyebrow">ЕДИНЫЙ СПРАВОЧНИК</p><h1>Поставщики</h1></div><button className="primary" onClick={() => setAdding(true)}>+ Поставщик</button></div>
     <div className="toolbar"><input className="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Поиск по названию, бренду или категории" />
-      <select value={owner} onChange={(e) => setOwner(e.target.value)}><option value="all">Все закупщики</option>{workspace.employees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}<option value="inactive">Не работаем</option></select>
+      <select value={owner} onChange={(e) => setOwner(e.target.value)}><option value="all">Все закупщики</option>{buyers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}<option value="inactive">Не работаем</option></select>
       <div className="segmented"><button className={view === "directory" ? "active" : ""} onClick={() => setView("directory")}>Справочник</button><button className={view === "board" ? "active" : ""} onClick={() => setView("board")}>Доска</button></div>
       <span className="result-count">{suppliers.length} поставщиков</span></div>
     {view === "directory" ? <div className="supplier-table-wrap"><table className="supplier-table"><thead><tr><th>Поставщик</th><th>Закупщик</th><th>Категории и бренды</th><th>Доставка</th><th>Отсрочка</th><th>Контакты</th></tr></thead>
       <tbody>{suppliers.map((supplier) => <tr key={supplier.id} onClick={() => setEditing(supplier)}><td><strong>{supplier.name}</strong><div>{supplier.contract && <span className="contract-badge">К</span>}{!supplier.active && <span className="inactive-badge">Не работаем</span>}</div></td>
         <td><EmployeeChip employee={employee(supplier.ownerEmployeeId)} /></td><td><div className="tag-line">{supplier.categories?.map((item) => <span key={item}>{item}</span>)}</div><small>{supplier.brands?.join(", ") || "—"}</small></td>
         <td>{supplier.deliveryTerms || "—"}</td><td>{supplier.paymentDeferral || "—"}</td><td>{supplier.contacts?.length ? supplier.contacts.map((item, index) => <small className="contact" key={index}>{[item.name, item.phone, item.email].filter(Boolean).join(" · ")}</small>) : "—"}</td></tr>)}</tbody></table></div>
-      : <div className="supplier-board">{columns.map((column) => { const items = suppliers.filter((item) => column.id === "inactive" ? !item.active : item.active && item.ownerEmployeeId === column.id); return <section className="supplier-column" key={column.id} onDragOver={(e) => e.preventDefault()} onDrop={(e) => moveSupplier(e.dataTransfer.getData("text/plain"), column.id === "inactive" ? "" : column.id, column.id !== "inactive")}>
+      : <div className="supplier-board">{columns.map((column) => { const items = suppliers.filter((item) => column.id === "inactive" ? !item.active : column.id === "unassigned" ? item.active && !buyerIds.has(item.ownerEmployeeId) : item.active && item.ownerEmployeeId === column.id); return <section className="supplier-column" key={column.id} onDragOver={(e) => e.preventDefault()} onDrop={(e) => moveSupplier(e.dataTransfer.getData("text/plain"), ["inactive", "unassigned"].includes(column.id) ? "" : column.id, column.id !== "inactive")}>
         <header style={{ borderColor: column.color }}><h3>{column.name}</h3><span>{items.length}</span></header><div className="supplier-column-body">{items.map((supplier) => <button draggable className="supplier-card" key={supplier.id} onDragStart={(e) => e.dataTransfer.setData("text/plain", supplier.id)} onClick={() => setEditing(supplier)}><span>{supplier.name}</span>{supplier.contract && <b>К</b>}</button>)}{!items.length && <p className="drop-hint">Пусто — перенесите сюда поставщика</p>}</div></section>; })}</div>}
     {(adding || editing) && <SupplierForm supplier={editing} employees={workspace.employees} onSave={saveSupplier} onClose={() => { setEditing(null); setAdding(false); }} />}
   </section>;
 }
 
 function EmployeeForm({ employee, onSave, onClose }) {
-  const [form, setForm] = useState(employee || { name: "", email: "", color: COLORS[0], active: true, role: "member" });
+  const [form, setForm] = useState(employee || { name: "", email: "", color: COLORS[0], active: true, isBuyer: true, role: "member" });
   const field = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   return <Modal title={employee ? "Сотрудник" : "Новый сотрудник"} onClose={onClose}><form className="stack-form" onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
     <label>Имя и фамилия<input value={form.name} onChange={(e) => field("name", e.target.value)} required /></label>
@@ -273,6 +275,7 @@ function EmployeeForm({ employee, onSave, onClose }) {
     <label>Цвет<input type="color" value={form.color} onChange={(e) => field("color", e.target.value)} /></label>
     <label>Роль<select value={form.role} onChange={(e) => field("role", e.target.value)}><option value="member">Сотрудник</option><option value="admin">Администратор</option></select></label>
     <label className="check-line"><input type="checkbox" checked={form.active} onChange={(e) => field("active", e.target.checked)} /> Работает в команде</label>
+    <label className="check-line"><input type="checkbox" checked={form.isBuyer !== false} onChange={(e) => field("isBuyer", e.target.checked)} /> Закупщик — показывать на доске поставщиков</label>
     <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Отмена</button><button className="primary">Сохранить</button></div>
   </form></Modal>;
 }

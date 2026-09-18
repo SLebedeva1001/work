@@ -119,7 +119,7 @@ function workspaceFromBoard(board) {
   const employees = board.columns.filter((column) => !inactiveColumn(column.name)).map((column) => ({
     id: column.id, name: column.name,
     email: column.name.toLocaleLowerCase("ru").includes("лебедева") ? ADMIN_EMAIL : "",
-    color: column.color, active: true,
+    color: column.color, active: true, isBuyer: true,
     role: column.name.toLocaleLowerCase("ru").includes("лебедева") ? "admin" : "member", userId: ""
   }));
   const suppliers = board.columns.flatMap((column) => column.suppliers.map((supplier) => ({
@@ -130,7 +130,7 @@ function workspaceFromBoard(board) {
   return { version: 2, revision: 1, employees, suppliers, tasks: [], createdAt: now, updatedAt: now };
 }
 function workspaceToBoard(workspace) {
-  const columns = workspace.employees.filter((employee) => employee.active).map((employee) => ({
+  const columns = workspace.employees.filter((employee) => employee.active && employee.isBuyer !== false).map((employee) => ({
     id: employee.id, name: employee.name, color: employee.color,
     suppliers: workspace.suppliers.filter((supplier) => supplier.active && supplier.ownerEmployeeId === employee.id)
       .map(({ id, name, contract }) => ({ id, name, contract }))
