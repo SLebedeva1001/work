@@ -58,14 +58,14 @@ function AnalyticsPage({ workspace }) {
   const maxWorkload = Math.max(1, ...workload.map((item) => item.newCount + item.progressCount + item.waitingCount));
   const periodCompleted = completed.filter((task) => periodKeys.has(localDayKey(task.completedAt)));
 
-  return <section className="page-content analytics-page">
-    <div className="section-heading"><div><p className="eyebrow">РЕЗУЛЬТАТЫ КОМАНДЫ</p><h1>Сводка</h1></div><select value={period} onChange={(e) => setPeriod(Number(e.target.value))}><option value="14">14 дней</option><option value="30">30 дней</option></select></div>
+  return <div className="analytics-page">
+    <div className="analytics-period"><span>Период</span><select value={period} onChange={(e) => setPeriod(Number(e.target.value))}><option value="14">14 дней</option><option value="30">30 дней</option></select></div>
     <div className="metric-grid"><article><span>Сегодня выполнено</span><strong>{completed.filter((task) => localDayKey(task.completedAt) === todayKey).length}</strong></article><article><span>За {period} дней</span><strong>{periodCompleted.length}</strong></article><article><span>Активных задач</span><strong>{activeTasks.length}</strong></article><article><span>В ожидании</span><strong>{activeTasks.filter((task) => task.status === "Ожидание").length}</strong></article></div>
     <div className="analytics-grid"><article className="chart-panel completed-chart"><header><div><h2>Выполнено по дням</h2><p>Одна задача делится поровну между всеми участниками</p></div></header><div className="bar-chart">{dayData.map((day) => <div className="day-column" key={day.key} title={`${day.label}: ${day.tasks.length}`}><div className="day-bar" style={{ height: `${Math.max(day.tasks.length ? 10 : 2, day.tasks.length / maxCompleted * 100)}%` }}>{Object.entries(day.credits).map(([employeeId, value]) => <span key={employeeId} style={{ background: employee(employeeId)?.color || "#789", flex: value }} />)}{!day.tasks.length && <i />}</div><small>{day.label}</small></div>)}</div></article>
       <article className="chart-panel"><header><div><h2>Вклад за период</h2><p>Доли совместных задач</p></div></header><div className="contribution-list">{contribution.map((person) => <div key={person.id}><span><i style={{ background: person.color }} />{person.name}</span><strong>{person.value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}</strong></div>)}{!contribution.length && <p className="empty">За выбранный период выполненных задач нет</p>}</div></article>
     </div>
     <article className="chart-panel workload-panel"><header><div><h2>Текущая загрузка</h2><p>Совместная задача учитывается у каждого текущего исполнителя</p></div><div className="chart-legend"><span><i className="legend-new" />Новая</span><span><i className="legend-progress" />В процессе</span><span><i className="legend-waiting" />Ожидание</span></div></header><div className="workload-list">{workload.map((person) => { const total = person.newCount + person.progressCount + person.waitingCount; return <div className="workload-row" key={person.id}><span>{person.name}</span><div className="workload-track" title={`${total} задач`}><i className="work-new" style={{ width: `${person.newCount / maxWorkload * 100}%` }} /><i className="work-progress" style={{ width: `${person.progressCount / maxWorkload * 100}%` }} /><i className="work-waiting" style={{ width: `${person.waitingCount / maxWorkload * 100}%` }} /></div><strong>{total}</strong></div>; })}{!workload.length && <p className="empty">Активных задач сейчас нет</p>}</div></article>
-  </section>;
+  </div>;
 }
 
 function EmployeeChip({ employee, faded = false }) {
@@ -226,8 +226,9 @@ function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
 function TasksPage({ workspace, currentEmployee, mutate, admin }) {
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [archive, setArchive] = useState(false);
+  const [view, setView] = useState("active");
   const [adding, setAdding] = useState(false);
+  const archive = view === "archive";
   const tasks = workspace.tasks.filter((task) => (archive ? !ACTIVE_STATUSES.has(task.status) : ACTIVE_STATUSES.has(task.status)) &&
     (employeeFilter === "all" || task.assigneeIds.includes(employeeFilter)) && (statusFilter === "all" || task.status === statusFilter))
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
@@ -241,16 +242,17 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
   }
 
   return <section className="page-content">
-    <div className="section-heading"><div><p className="eyebrow">РАБОТА КОМАНДЫ</p><h1>{archive ? "Архив задач" : "Активные задачи"}</h1></div>
-      <button className="primary" onClick={() => setAdding(true)}>+ Новая задача</button></div>
+    <div className="section-heading"><div><p className="eyebrow">РАБОТА КОМАНДЫ</p><h1>{view === "analytics" ? "Сводка задач" : archive ? "Архив задач" : "Активные задачи"}</h1></div>
+      {view !== "analytics" && <button className="primary" onClick={() => setAdding(true)}>+ Новая задача</button>}</div>
     <div className="toolbar">
-      <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}><option value="all">Все сотрудники</option>{workspace.employees.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select>
-      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">Все статусы</option>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select>
-      <div className="segmented"><button className={!archive ? "active" : ""} onClick={() => setArchive(false)}>Активные</button><button className={archive ? "active" : ""} onClick={() => setArchive(true)}>Архив</button></div>
-      <span className="result-count">{tasks.length} задач</span>
+      {view !== "analytics" && <><select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}><option value="all">Все сотрудники</option>{workspace.employees.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select>
+      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">Все статусы</option>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></>}
+      <div className="segmented"><button className={view === "active" ? "active" : ""} onClick={() => setView("active")}>Активные</button><button className={view === "archive" ? "active" : ""} onClick={() => setView("archive")}>Архив</button><button className={view === "analytics" ? "active" : ""} onClick={() => setView("analytics")}>Сводка</button></div>
+      {view !== "analytics" && <span className="result-count">{tasks.length} задач</span>}
     </div>
-    <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
+    {view === "analytics" ? <AnalyticsPage workspace={workspace} /> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
       {!tasks.length && <div className="empty-panel"><h3>Здесь пока нет задач</h3><p>Создайте новую задачу или измените фильтры.</p></div>}</div>
+    }
     {adding && <TaskForm employees={workspace.employees} onSave={createTask} onClose={() => setAdding(false)} />}
   </section>;
 }
@@ -399,14 +401,13 @@ function App() {
 
   const currentEmployee = me?.employee || workspace.employees.find((item) => item.email?.toLowerCase() === me?.user?.email?.toLowerCase());
   return <div className="app-shell"><aside className="sidebar"><div className="brand"><span>BT</span><div><strong>Baby Trend</strong><small>Рабочее пространство</small></div></div>
-    <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button><button className={page === "analytics" ? "active" : ""} onClick={() => setPage("analytics")}><span>▥</span> Сводка</button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
+    <nav><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}><span>✓</span> Задачи</button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}><span>▦</span> Поставщики</button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}><span>●</span> Сотрудники</button></nav>
     <div className="sidebar-user"><EmployeeChip employee={currentEmployee} /><small>{me?.user?.email}</small><button onClick={logout}>Выйти</button></div></aside>
     <main className="main-area">{error && <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div>}{saving && <div className="saving">Сохраняем…</div>}
       {page === "tasks" && <TasksPage workspace={workspace} currentEmployee={currentEmployee} mutate={mutate} admin={me?.isAdmin} />}
-      {page === "analytics" && <AnalyticsPage workspace={workspace} />}
       {page === "suppliers" && me?.canViewSuppliers && <SuppliersPage workspace={workspace} mutate={mutate} />}
       {page === "employees" && <EmployeesPage workspace={workspace} mutate={mutate} admin={me?.isAdmin} />}</main>
-    <nav className={`mobile-nav ${me?.canViewSuppliers ? "four" : ""}`}><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button><button className={page === "analytics" ? "active" : ""} onClick={() => setPage("analytics")}>▥<small>Сводка</small></button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
+    <nav className="mobile-nav"><button className={page === "tasks" ? "active" : ""} onClick={() => setPage("tasks")}>✓<small>Задачи</small></button>{me?.canViewSuppliers && <button className={page === "suppliers" ? "active" : ""} onClick={() => setPage("suppliers")}>▦<small>Поставщики</small></button>}<button className={page === "employees" ? "active" : ""} onClick={() => setPage("employees")}>●<small>Команда</small></button></nav>
   </div>;
 }
 
