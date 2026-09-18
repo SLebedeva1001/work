@@ -290,6 +290,7 @@ function EmployeesPage({ workspace, mutate, admin }) {
     catch (error) { setMessage(error.message); }
   }
   return <section className="page-content"><div className="section-heading"><div><p className="eyebrow">КОМАНДА</p><h1>Сотрудники</h1></div>{admin && <button className="primary" onClick={() => setAdding(true)}>+ Сотрудник</button>}</div>
+    {admin && <p className="section-note">Добавьте имя и почту сотрудника, сохраните карточку, затем нажмите «Пригласить». Коллега получит письмо и задаст собственный пароль.</p>}
     {message && <div className="notice">{message}</div>}<div className="employee-grid">{[...workspace.employees].sort((a, b) => collator.compare(a.name, b.name)).map((employee) => {
       const activeTasks = workspace.tasks.filter((task) => ACTIVE_STATUSES.has(task.status) && task.assigneeIds.includes(employee.id)).length;
       return <article className={`employee-card ${!employee.active ? "disabled" : ""}`} key={employee.id}><div className="avatar" style={{ background: employee.color }}>{employee.name.split(" ").map((x) => x[0]).slice(0, 2).join("")}</div><div><h3>{employee.name}</h3><p>{employee.email || "Почта не указана"}</p><strong>{activeTasks} активных задач</strong></div>

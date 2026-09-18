@@ -80,6 +80,7 @@ legend { padding: 0 6px; font-size: 13px; font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .employee-chip { display: inline-flex; align-items: center; width: fit-content; border-radius: 999px; padding: 3px 8px; background: color-mix(in srgb, var(--chip) 14%, white); color: color-mix(in srgb, var(--chip) 85%, black); border: 1px solid color-mix(in srgb, var(--chip) 35%, white); font-size: 11px; font-weight: 750; white-space: nowrap; }
 .employee-chip.faded { opacity: .58; }
+.section-note { margin: -8px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .status-pill { font-size: 12px; font-weight: 700; color: #59615c; }.days { font-size: 13px; font-weight: 750; }
 .last-update { display: grid; gap: 3px; min-width: 0; }.last-update b { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.last-update small { color: var(--muted); }.last-update em { color: #999; font-size: 12px; }
 .chevron { font-size: 20px; color: #7f8782; }

@@ -260,7 +260,9 @@ async function handler(req, res) {
       const body = await readRequestBody(req);
       const email = cleanText(body.email, 200).toLowerCase();
       if (!email) return sendJson(res, 400, { error: "Укажите электронную почту" });
-      const redirectTo = APP_URL || `${url.protocol}//${url.host}`;
+      const forwardedProtocol = cleanText(req.headers["x-forwarded-proto"], 20).split(",")[0] || url.protocol.replace(":", "");
+      const redirectTo = new URL(APP_URL || `${forwardedProtocol}://${url.host}`);
+      redirectTo.searchParams.set("react", "1");
       await authRequest(`invite?redirect_to=${encodeURIComponent(redirectTo)}`, { method: "POST",
         body: JSON.stringify({ email, data: { full_name: cleanText(body.name, 100) } }) });
       return sendJson(res, 200, { ok: true });
