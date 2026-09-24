@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
+const ExcelJS = require("exceljs");
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
@@ -22,6 +23,140 @@ const CONTENT_TYPES = {
 function sendJson(res, status, value) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   res.end(JSON.stringify(value));
+}
+
+const bangkokDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit"
+});
+
+function dateKey(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : bangkokDateFormatter.format(date);
+}
+
+function taskParticipantIds(task) {
+  const history = (task.updates || []).map((item) => item.authorEmployeeId);
+  return [...new Set([task.createdBy, task.completedBy, ...(task.participantIds || []), ...(task.assigneeIds || []), ...history].filter(Boolean))];
+}
+
+function linkedTaskGroups(tasks) {
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  const seen = new Set();
+  return tasks.map((task) => {
+    if (seen.has(task.id)) return null;
+    const group = [];
+    const queue = [task.id];
+    seen.add(task.id);
+    while (queue.length) {
+      const current = byId.get(queue.shift());
+      if (!current) continue;
+      group.push(current);
+      for (const linkedId of current.linkedTaskIds || []) {
+        if (byId.has(linkedId) && !seen.has(linkedId)) { seen.add(linkedId); queue.push(linkedId); }
+      }
+    }
+    return group;
+  }).filter(Boolean);
+}
+
+function excelColor(value, fallback = "D9E7E1") {
+  const normalized = String(value || "").replace("#", "").toUpperCase();
+  return /^[0-9A-F]{6}$/.test(normalized) ? normalized : fallback;
+}
+
+async function buildTaskWorkbook(workspace, filters = {}) {
+  const employeeById = new Map(workspace.employees.map((employee) => [employee.id, employee]));
+  const matches = (task) => (filters.employee === "all" || !filters.employee || taskParticipantIds(task).includes(filters.employee)) &&
+    (filters.status === "all" || !filters.status || task.status === filters.status);
+  const groups = linkedTaskGroups(workspace.tasks).filter((group) => group.some(matches));
+  const eventDates = groups.flatMap((group) => group.flatMap((task) => [task.createdAt, task.completedAt, ...(task.updates || []).map((item) => item.createdAt)]).filter(Boolean));
+  const today = dateKey(new Date());
+  const firstDate = eventDates.map(dateKey).filter(Boolean).sort()[0] || today;
+  const lastDate = [today, ...eventDates.map(dateKey).filter(Boolean)].sort().at(-1);
+  const activityDays = new Set(eventDates.map(dateKey).filter(Boolean));
+  const days = [];
+  for (let cursor = new Date(`${firstDate}T00:00:00Z`), end = new Date(`${lastDate}T00:00:00Z`); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const key = cursor.toISOString().slice(0, 10);
+    const weekday = cursor.getUTCDay();
+    if ((weekday !== 0 && weekday !== 6) || activityDays.has(key)) days.push(key);
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Baby Trend";
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet("Задачи закупа", { views: [{ state: "frozen", xSplit: 1, ySplit: 7, showGridLines: false }] });
+  sheet.properties.defaultRowHeight = 18;
+  sheet.getColumn(1).width = 42;
+  days.forEach((_, index) => { sheet.getColumn(index + 2).width = 22; });
+
+  const activeEmployees = workspace.employees.filter((employee) => employee.active !== false);
+  activeEmployees.forEach((employee, index) => {
+    const cell = sheet.getCell(index + 2, 1);
+    cell.value = employee.name;
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: excelColor(employee.color) } };
+  });
+  sheet.getCell("C2").value = "Завершение задачи выделено красным полужирным";
+  sheet.getCell("C2").font = { name: "Arial", size: 10, bold: true, color: { argb: "C00000" } };
+  sheet.getCell("C3").value = "Одна ячейка — один день. Цвет показывает исполнителя; совместная работа указана в примечании.";
+  sheet.getCell("C3").font = { name: "Arial", size: 10, italic: true, color: { argb: "666666" } };
+
+  const header = sheet.getRow(7);
+  header.getCell(1).value = "Задача";
+  days.forEach((key, index) => {
+    const cell = header.getCell(index + 2);
+    cell.value = new Date(`${key}T00:00:00Z`);
+    cell.numFmt = "dd.mm.yyyy";
+  });
+  header.height = 24;
+  header.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "174A40" } };
+    cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFF" } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = { top: { style: "thin", color: { argb: "174A40" } }, bottom: { style: "thin", color: { argb: "174A40" } }, left: { style: "thin", color: { argb: "FFFFFF" } }, right: { style: "thin", color: { argb: "FFFFFF" } } };
+  });
+
+  const dayColumn = new Map(days.map((key, index) => [key, index + 2]));
+  groups.sort((a, b) => new Date(a[0].createdAt || 0) - new Date(b[0].createdAt || 0)).forEach((group, groupIndex) => {
+    const row = sheet.getRow(groupIndex + 8);
+    const orderedTasks = [...group].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    const taskCell = row.getCell(1);
+    taskCell.value = orderedTasks[0].title;
+    if (orderedTasks.length > 1) taskCell.note = `Связанные задачи:\n${orderedTasks.map((task) => `• ${task.title}`).join("\n")}`;
+
+    const eventsByDay = new Map();
+    orderedTasks.forEach((task) => {
+      let events = (task.updates || []).filter((item) => item.createdAt && item.text && item.text !== "Задача создана");
+      if (!events.length) events = [{ text: "Задача создана", createdAt: task.createdAt, authorEmployeeId: task.createdBy, kind: "system" }];
+      events.forEach((event) => {
+        const key = dateKey(event.createdAt);
+        if (!key) return;
+        const list = eventsByDay.get(key) || [];
+        list.push({ ...event, taskTitle: task.title });
+        eventsByDay.set(key, list);
+      });
+    });
+
+    eventsByDay.forEach((events, key) => {
+      const column = dayColumn.get(key);
+      if (!column) return;
+      const cell = row.getCell(column);
+      const prefixTitles = orderedTasks.length > 1;
+      cell.value = events.map((event) => prefixTitles ? `${event.taskTitle}: ${event.text}` : event.text).join("\n");
+      const authorIds = [...new Set(events.map((event) => event.authorEmployeeId).filter((id) => employeeById.has(id)))];
+      const primary = employeeById.get(authorIds[0]);
+      if (primary) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: excelColor(primary.color) } };
+      if (authorIds.length > 1) cell.note = `В этот день также участвовали: ${authorIds.slice(1).map((id) => employeeById.get(id).name).join(", ")}`;
+      if (events.some((event) => /Статус:\s*(Выполнено|Отменено)/i.test(event.text))) cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "C00000" } };
+    });
+    row.height = 48;
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = cell.font?.bold ? cell.font : { name: "Arial", size: 10, color: { argb: "111111" } };
+      cell.alignment = { vertical: "top", wrapText: true };
+      cell.border = { top: { style: "thin", color: { argb: "777777" } }, bottom: { style: "thin", color: { argb: "777777" } }, left: { style: "thin", color: { argb: "777777" } }, right: { style: "thin", color: { argb: "777777" } } };
+    });
+  });
+  sheet.autoFilter = { from: { row: 7, column: 1 }, to: { row: Math.max(7, groups.length + 7), column: Math.max(1, days.length + 1) } };
+  return workbook;
 }
 
 async function readRequestBody(req) {
@@ -273,6 +408,24 @@ async function handler(req, res) {
         data: { ...(user.user_metadata || {}), must_change_password: false } }) }, token);
       return sendJson(res, 200, { ok: true });
     }
+    if (pathname === "/api/tasks/export.xlsx" && req.method === "GET") {
+      const user = await requireUser(req);
+      const workspace = await readWorkspace();
+      if (!userEmployee(workspace, user) && user.email?.toLowerCase() !== ADMIN_EMAIL) return sendJson(res, 403, { error: "Пользователь не добавлен в список сотрудников" });
+      const workbook = await buildTaskWorkbook(workspace, {
+        employee: cleanText(url.searchParams.get("employee"), 100) || "all",
+        status: cleanText(url.searchParams.get("status"), 100) || "all"
+      });
+      const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+      const filename = `Задачи_закупщиков_${dateKey(new Date())}.xlsx`;
+      res.writeHead(200, {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        "Content-Length": buffer.length,
+        "Cache-Control": "no-store"
+      });
+      return res.end(buffer);
+    }
     if (pathname === "/api/admin/temporary-access" && req.method === "POST") {
       const user = await requireUser(req);
       const workspace = await readWorkspace();
@@ -349,4 +502,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { handler };
+module.exports = { handler, buildTaskWorkbook };

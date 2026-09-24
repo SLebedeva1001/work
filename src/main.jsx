@@ -254,6 +254,8 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [view, setView] = useState("active");
   const [adding, setAdding] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const archive = view === "archive";
   const tasks = workspace.tasks.filter((task) => (archive ? !ACTIVE_STATUSES.has(task.status) : ACTIVE_STATUSES.has(task.status)) &&
     (employeeFilter === "all" || task.assigneeIds.includes(employeeFilter)) && (statusFilter === "all" || task.status === statusFilter))
@@ -269,6 +271,26 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
     setAdding(false);
   }
 
+  async function exportTasks() {
+    setExporting(true); setExportError("");
+    try {
+      const params = new URLSearchParams({ employee: employeeFilter, status: statusFilter });
+      const response = await fetch(`/api/tasks/export.xlsx?${params}`, { headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {} });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Не удалось сформировать Excel");
+      }
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+      const filename = encodedName ? decodeURIComponent(encodedName) : `Задачи_закупщиков_${localDayKey(new Date())}.xlsx`;
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) { setExportError(error.message); }
+    finally { setExporting(false); }
+  }
+
   return <section className="page-content">
     <div className="section-heading"><div><p className="eyebrow">РАБОТА КОМАНДЫ</p><h1>Задачи команды</h1></div>
       <button className="primary" onClick={() => setAdding(true)}>+ Новая задача</button></div>
@@ -276,8 +298,10 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
       <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}><option value="all">Все сотрудники</option>{workspace.employees.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select>
       <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">Все статусы</option>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select>
       <div className="segmented"><button className={view === "active" ? "active" : ""} onClick={() => setView("active")}>Активные</button><button className={view === "archive" ? "active" : ""} onClick={() => setView("archive")}>Архив</button><button className={view === "analytics" ? "active" : ""} onClick={() => setView("analytics")}>Сводка</button></div>
+      <button className="secondary export-button" onClick={exportTasks} disabled={exporting}>{exporting ? "Готовим…" : "Скачать Excel"}</button>
       <span className={`result-count ${view === "analytics" ? "placeholder" : ""}`}>{view === "analytics" ? "0 задач" : `${tasks.length} задач`}</span>
     </div>
+    {exportError && <div className="notice danger">{exportError}</div>}
     {view === "analytics" ? <AnalyticsPage workspace={workspace} employeeFilter={employeeFilter} statusFilter={statusFilter} /> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} tasks={workspace.tasks} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
       {!tasks.length && <div className="empty-panel"><h3>Здесь пока нет задач</h3><p>Создайте новую задачу или измените фильтры.</p></div>}</div>
     }
