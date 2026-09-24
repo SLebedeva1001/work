@@ -149,14 +149,16 @@ function PasswordSetup({ onReady }) {
     <form className="stack-form" onSubmit={submit}><label>Новый пароль<input type="password" minLength="8" value={password} onChange={(e) => setPassword(e.target.value)} required /></label><label>Повторите пароль<input type="password" minLength="8" value={repeat} onChange={(e) => setRepeat(e.target.value)} required /></label>{error && <p className="form-error">{error}</p>}<button className="primary">Сохранить пароль</button></form></section></main>;
 }
 
-function TaskForm({ employees, task, onSave, onClose }) {
+function TaskForm({ employees, tasks, task, onSave, onClose }) {
   const [title, setTitle] = useState(task?.title || "");
   const [status, setStatus] = useState(task?.status || "Новая");
   const [assigneeIds, setAssignees] = useState(task?.assigneeIds || []);
+  const [linkedTaskIds, setLinkedTaskIds] = useState(task?.linkedTaskIds || []);
   const [error, setError] = useState("");
   function toggle(employeeId) { setAssignees((items) => items.includes(employeeId) ? items.filter((item) => item !== employeeId) : [...items, employeeId]); }
+  function toggleLinked(taskId) { setLinkedTaskIds((items) => items.includes(taskId) ? items.filter((item) => item !== taskId) : [...items, taskId]); }
   return <Modal title={task ? "Редактировать задачу" : "Новая задача"} onClose={onClose}>
-    <form className="stack-form" onSubmit={(event) => { event.preventDefault(); if (!assigneeIds.length) return setError("Выберите хотя бы одного исполнителя"); onSave({ title: title.trim(), status, assigneeIds }); }}>
+    <form className="stack-form" onSubmit={(event) => { event.preventDefault(); if (!assigneeIds.length) return setError("Выберите хотя бы одного исполнителя"); onSave({ title: title.trim(), status, assigneeIds, linkedTaskIds }); }}>
       <label>Название задачи<textarea rows="3" value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus /></label>
       <label>Статус<select value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></label>
       <fieldset><legend>Текущие исполнители</legend><div className="check-grid">
@@ -165,13 +167,17 @@ function TaskForm({ employees, task, onSave, onClose }) {
           <EmployeeChip employee={employee} />
         </label>)}
       </div></fieldset>
+      <fieldset><legend>Связанные задачи</legend><p className="field-hint">Связанные задачи останутся отдельными, но смогут объединяться в одну строку отчёта.</p><div className="linked-task-picker">
+        {(tasks || []).filter((item) => item.id !== task?.id).map((item) => <label key={item.id}><input type="checkbox" checked={linkedTaskIds.includes(item.id)} onChange={() => toggleLinked(item.id)} /><span>{item.title}</span><small>{item.status}</small></label>)}
+        {!(tasks || []).filter((item) => item.id !== task?.id).length && <span className="empty">Других задач пока нет</span>}
+      </div></fieldset>
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Отмена</button><button className="primary">Сохранить</button></div>
     </form>
   </Modal>;
 }
 
-function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
+function TaskCard({ task, tasks, employees, currentEmployee, mutate, admin }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [update, setUpdate] = useState("");
@@ -184,6 +190,13 @@ function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
       const target = workspace.tasks.find((item) => item.id === task.id);
       const previous = target.assigneeIds || [];
       target.title = values.title; target.status = values.status; target.assigneeIds = values.assigneeIds;
+      target.linkedTaskIds = values.linkedTaskIds;
+      workspace.tasks.forEach((item) => {
+        if (item.id === target.id) return;
+        const links = new Set(item.linkedTaskIds || []);
+        if (values.linkedTaskIds.includes(item.id)) links.add(target.id); else links.delete(target.id);
+        item.linkedTaskIds = [...links];
+      });
       target.updatedAt = new Date().toISOString();
       target.participantIds = [...new Set([...(target.participantIds || []), ...values.assigneeIds])];
       if (values.status === "Выполнено" && task.status !== "Выполнено" && currentEmployee?.id) {
@@ -210,7 +223,7 @@ function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
   }
   function removeTask() {
     if (!window.confirm(`Удалить задачу «${task.title}» из архива без возможности восстановления?`)) return;
-    mutate((workspace) => { workspace.tasks = workspace.tasks.filter((item) => item.id !== task.id); });
+    mutate((workspace) => { workspace.tasks = workspace.tasks.filter((item) => item.id !== task.id); workspace.tasks.forEach((item) => { item.linkedTaskIds = (item.linkedTaskIds || []).filter((id) => id !== task.id); }); });
   }
 
   return <article className={`task-card status-${task.status.replaceAll(" ", "-").toLowerCase()}`}>
@@ -224,6 +237,7 @@ function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
     {open && <div className="task-details">
       <div className="task-meta"><span>Создана {formatDate(task.createdAt)}</span><span>Начал: {employee(task.createdBy)?.name || "—"}</span>
         <button className="secondary small" onClick={() => setEditing(true)}>Редактировать</button>{admin && !ACTIVE_STATUSES.has(task.status) && <button className="danger small" onClick={removeTask}>Удалить из архива</button>}</div>
+      {!!task.linkedTaskIds?.length && <div className="linked-tasks"><strong>Связано:</strong>{task.linkedTaskIds.map((taskId) => { const linked = tasks.find((item) => item.id === taskId); return linked ? <span key={taskId}>{linked.title}</span> : null; })}</div>}
       {ACTIVE_STATUSES.has(task.status) && <form className="quick-update" onSubmit={addUpdate}>
         <input value={update} onChange={(e) => setUpdate(e.target.value)} placeholder="Что изменилось сегодня?" /><button className="primary">Добавить обновление</button>
       </form>}
@@ -231,7 +245,7 @@ function TaskCard({ task, employees, currentEmployee, mutate, admin }) {
         <span className="timeline-dot" /><div><p>{item.text}</p><small>{employee(item.authorEmployeeId)?.name || "Система"} · {formatDate(item.createdAt, true)}</small></div>
       </div>) : <p className="empty">История пока пуста</p>}</div>
     </div>}
-    {editing && <TaskForm employees={employees} task={task} onSave={saveTask} onClose={() => setEditing(false)} />}
+    {editing && <TaskForm employees={employees} tasks={tasks} task={task} onSave={saveTask} onClose={() => setEditing(false)} />}
   </article>;
 }
 
@@ -246,10 +260,12 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
   function createTask(values) {
-    mutate((draft) => draft.tasks.push({ id: id("task"), title: values.title, status: values.status,
+    mutate((draft) => { const taskId = id("task"); draft.tasks.push({ id: taskId, title: values.title, status: values.status,
       assigneeIds: values.assigneeIds, participantIds: values.assigneeIds, createdBy: currentEmployee?.id || "",
+      linkedTaskIds: values.linkedTaskIds,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), completedAt: ACTIVE_STATUSES.has(values.status) ? null : new Date().toISOString(),
-      updates: [{ id: id("event"), kind: "system", text: "Задача создана", createdAt: new Date().toISOString(), authorEmployeeId: currentEmployee?.id || "" }] }));
+      updates: [{ id: id("event"), kind: "system", text: "Задача создана", createdAt: new Date().toISOString(), authorEmployeeId: currentEmployee?.id || "" }] });
+      draft.tasks.forEach((item) => { if (values.linkedTaskIds.includes(item.id)) item.linkedTaskIds = [...new Set([...(item.linkedTaskIds || []), taskId])]; }); });
     setAdding(false);
   }
 
@@ -262,10 +278,10 @@ function TasksPage({ workspace, currentEmployee, mutate, admin }) {
       <div className="segmented"><button className={view === "active" ? "active" : ""} onClick={() => setView("active")}>Активные</button><button className={view === "archive" ? "active" : ""} onClick={() => setView("archive")}>Архив</button><button className={view === "analytics" ? "active" : ""} onClick={() => setView("analytics")}>Сводка</button></div>
       <span className={`result-count ${view === "analytics" ? "placeholder" : ""}`}>{view === "analytics" ? "0 задач" : `${tasks.length} задач`}</span>
     </div>
-    {view === "analytics" ? <AnalyticsPage workspace={workspace} employeeFilter={employeeFilter} statusFilter={statusFilter} /> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
+    {view === "analytics" ? <AnalyticsPage workspace={workspace} employeeFilter={employeeFilter} statusFilter={statusFilter} /> : <div className="task-list">{tasks.map((task) => <TaskCard key={task.id} task={task} tasks={workspace.tasks} employees={workspace.employees} currentEmployee={currentEmployee} mutate={mutate} admin={admin} />)}
       {!tasks.length && <div className="empty-panel"><h3>Здесь пока нет задач</h3><p>Создайте новую задачу или измените фильтры.</p></div>}</div>
     }
-    {adding && <TaskForm employees={workspace.employees} onSave={createTask} onClose={() => setAdding(false)} />}
+    {adding && <TaskForm employees={workspace.employees} tasks={workspace.tasks} onSave={createTask} onClose={() => setAdding(false)} />}
   </section>;
 }
 
