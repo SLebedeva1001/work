@@ -64,6 +64,10 @@ function excelColor(value, fallback = "D9E7E1") {
   return /^[0-9A-F]{6}$/.test(normalized) ? normalized : fallback;
 }
 
+function withoutTaskStatus(text) {
+  return String(text || "").split(" · ").filter((part) => !/^Статус:/i.test(part.trim())).join(" · ").trim();
+}
+
 async function buildTaskWorkbook(workspace, filters = {}) {
   const employeeById = new Map(workspace.employees.map((employee) => [employee.id, employee]));
   const matches = (task) => (filters.employee === "all" || !filters.employee || taskParticipantIds(task).includes(filters.employee)) &&
@@ -125,8 +129,13 @@ async function buildTaskWorkbook(workspace, filters = {}) {
 
     const eventsByDay = new Map();
     orderedTasks.forEach((task) => {
-      let events = (task.updates || []).filter((item) => item.createdAt && item.text && item.text !== "Задача создана");
+      let events = (task.updates || []).map((item) => ({ ...item, text: withoutTaskStatus(item.text) }))
+        .filter((item) => item.createdAt && item.text && item.text !== "Задача создана");
       if (!events.length) events = [{ text: "Задача создана", createdAt: task.createdAt, authorEmployeeId: task.createdBy, kind: "system" }];
+      if (["Выполнено", "Отменено"].includes(task.status)) {
+        const finalEvent = [...events].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        if (finalEvent) finalEvent.isFinal = true;
+      }
       events.forEach((event) => {
         const key = dateKey(event.createdAt);
         if (!key) return;
@@ -146,7 +155,7 @@ async function buildTaskWorkbook(workspace, filters = {}) {
       const primary = employeeById.get(authorIds[0]);
       if (primary) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: excelColor(primary.color) } };
       if (authorIds.length > 1) cell.note = `В этот день также участвовали: ${authorIds.slice(1).map((id) => employeeById.get(id).name).join(", ")}`;
-      if (events.some((event) => /Статус:\s*(Выполнено|Отменено)/i.test(event.text))) cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "C00000" } };
+      if (events.some((event) => event.isFinal)) cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "C00000" } };
     });
     row.height = 48;
     row.eachCell({ includeEmpty: true }, (cell) => {
