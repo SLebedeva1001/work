@@ -7,8 +7,8 @@ const ExcelJS = require("exceljs");
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
 const PUBLIC_DIR = path.join(__dirname, "dist");
-const SEED_FILE = path.join(__dirname, "data", "board.json");
-const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : SEED_FILE;
+const SEED_FILE = path.join(__dirname, "data", "board.seed.json");
+const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(__dirname, "data", "board.json");
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "s.vento85@gmail.com").trim().toLowerCase();
@@ -200,7 +200,15 @@ function normalizeBoard(value) {
 }
 
 let writeQueue = Promise.resolve();
-async function readFileBoard() { return normalizeBoard(JSON.parse(await fs.readFile(DATA_FILE, "utf8"))); }
+async function readFileBoard() {
+  try { return normalizeBoard(JSON.parse(await fs.readFile(DATA_FILE, "utf8"))); }
+  catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    const seed = normalizeBoard(JSON.parse(await fs.readFile(SEED_FILE, "utf8")));
+    await writeFileBoard(seed);
+    return seed;
+  }
+}
 function writeFileBoard(board) {
   writeQueue = writeQueue.then(async () => {
     const temporary = `${DATA_FILE}.tmp`;

@@ -21,6 +21,8 @@
 
 ## Локальный запуск
 
+Требуется Node.js 20.19 или новее. Для macOS можно использовать готовые файлы `setup-mac.command` и `start-workspace.command`; подробности находятся в `MAC_SETUP.md`.
+
 ```bash
 npm install
 npm run build

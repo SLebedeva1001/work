@@ -1,6 +1,12 @@
 node_modules/
 *.log
 .env
+dist/
 data/*.tmp
+data/board.json
+data/*.workspace.json
 data/board-live-backup.json
+data/*backup*.json
 .tmp-sheet/
+.pnpm-store/
+Перенос_на_Mac/
