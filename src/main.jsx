@@ -313,18 +313,29 @@ function SupplierForm({ supplier, employees, onSave, onClose }) {
   const [form, setForm] = useState(supplier || { name: "", ownerEmployeeId: "", active: true, contract: false,
     deliveryTerms: "", paymentDeferral: "", categories: [], brands: [], contacts: [], notes: "" });
   const field = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-  const contactsText = (form.contacts || []).map((item) => [item.name, item.phone, item.email].filter(Boolean).join(" | ")).join("\n");
+  const [categoriesText, setCategoriesText] = useState(() => (supplier?.categories || []).join(", "));
+  const [brandsText, setBrandsText] = useState(() => (supplier?.brands || []).join(", "));
+  const [contactsText, setContactsText] = useState(() => (supplier?.contacts || []).map((item) => [item.name || "", item.phone || "", item.email || ""].join(" | ")).join("\n"));
+  function submit(event) {
+    event.preventDefault();
+    const parseList = (text) => text.split(",").map((item) => item.trim()).filter(Boolean);
+    const contacts = contactsText.split("\n").map((line) => {
+      const [name = "", phone = "", email = ""] = line.split("|").map((item) => item.trim());
+      return { name, phone, email };
+    }).filter((item) => item.name || item.phone || item.email);
+    onSave({ ...form, categories: parseList(categoriesText), brands: parseList(brandsText), contacts });
+  }
   return <Modal title={supplier ? "Карточка поставщика" : "Новый поставщик"} onClose={onClose} wide>
-    <form className="supplier-form" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
+    <form className="supplier-form" onSubmit={submit}>
       <label className="span-2">Название поставщика<input value={form.name} onChange={(e) => field("name", e.target.value)} required autoFocus /></label>
       <label>Ответственный закупщик<select value={form.ownerEmployeeId} onChange={(e) => field("ownerEmployeeId", e.target.value)}><option value="">Не назначен</option>{employees.filter((item) => item.active && item.isBuyer !== false).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
       <label>Статус<select value={form.active ? "active" : "inactive"} onChange={(e) => field("active", e.target.value === "active")}><option value="active">Работаем</option><option value="inactive">Не работаем</option></select></label>
       <label className="span-2 check-line"><input type="checkbox" checked={form.contract} onChange={(e) => field("contract", e.target.checked)} /> Есть контракт</label>
       <label>Условия доставки<textarea rows="3" value={form.deliveryTerms} onChange={(e) => field("deliveryTerms", e.target.value)} placeholder="Минимальная сумма, сроки, регион…" /></label>
       <label>Отсрочка платежа<textarea rows="3" value={form.paymentDeferral} onChange={(e) => field("paymentDeferral", e.target.value)} placeholder="Например: 30 календарных дней" /></label>
-      <label>Категории товаров<input value={(form.categories || []).join(", ")} onChange={(e) => field("categories", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} placeholder="Бытовая химия, гигиена…" /></label>
-      <label>Бренды<input value={(form.brands || []).join(", ")} onChange={(e) => field("brands", e.target.value.split(",").map((x) => x.trim()).filter(Boolean))} placeholder="Каждый бренд через запятую" /></label>
-      <label className="span-2">Контакты<textarea rows="4" value={contactsText} onChange={(e) => field("contacts", e.target.value.split("\n").filter(Boolean).map((line) => { const [name = "", phone = "", email = ""] = line.split("|").map((x) => x.trim()); return { name, phone, email }; }))} placeholder="Имя | телефон | email — каждый контакт с новой строки" /></label>
+      <label>Категории товаров<input value={categoriesText} onChange={(e) => setCategoriesText(e.target.value)} placeholder="Бытовая химия, гигиена…" /></label>
+      <label>Бренды<input value={brandsText} onChange={(e) => setBrandsText(e.target.value)} placeholder="Каждый бренд через запятую" /></label>
+      <label className="span-2">Контакты<textarea rows="4" value={contactsText} onChange={(e) => setContactsText(e.target.value)} placeholder="Имя | телефон | email — каждый контакт с новой строки" /></label>
       <label className="span-2">Примечания<textarea rows="3" value={form.notes} onChange={(e) => field("notes", e.target.value)} /></label>
       <div className="form-actions span-2"><button type="button" className="secondary" onClick={onClose}>Отмена</button><button className="primary">Сохранить</button></div>
     </form>
